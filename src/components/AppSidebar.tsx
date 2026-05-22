@@ -21,19 +21,19 @@ import {
 import { useState } from "react";
 
 const navItems = [
-  { href: "/app", label: "All Opportunities", icon: LayoutGrid },
-  { href: "/app/biz-grants", label: "Biz Grants", icon: Briefcase },
-  { href: "/app/sbir", label: "SBIR / STTR", icon: Beaker },
-  { href: "/app/personal", label: "Personal Grants", icon: User },
+  { href: "/app", label: "All Opportunities", icon: LayoutGrid, tour: "nav-all" },
+  { href: "/app/biz-grants", label: "Biz Grants", icon: Briefcase, tour: "nav-biz-grants" },
+  { href: "/app/sbir", label: "SBIR / STTR", icon: Beaker, tour: "nav-sbir" },
+  { href: "/app/personal", label: "Personal Grants", icon: User, tour: "nav-personal" },
   { type: "divider" as const },
-  { href: "/app/saved", label: "Saved", icon: Bookmark },
-  { href: "/app/matches", label: "AI Matches", icon: Brain },
-  { href: "/app/applications", label: "Applications", icon: FileText },
-  { href: "/app/archive", label: "Archive", icon: Archive },
+  { href: "/app/saved", label: "Saved", icon: Bookmark, tour: "nav-saved" },
+  { href: "/app/matches", label: "AI Matches", icon: Brain, tour: "nav-matches" },
+  { href: "/app/applications", label: "Applications", icon: FileText, tour: "nav-applications" },
+  { href: "/app/archive", label: "Archive", icon: Archive, tour: "nav-archive" },
   { type: "divider" as const },
-  { href: "/app/organization", label: "Organization", icon: Building2 },
-  { href: "/app/personal-profile", label: "Personal Profile", icon: UserCircle },
-  { href: "/app/settings", label: "Settings", icon: Settings },
+  { href: "/app/organization", label: "Organization", icon: Building2, tour: "nav-organization" },
+  { href: "/app/personal-profile", label: "Personal Profile", icon: UserCircle, tour: "nav-personal-profile" },
+  { href: "/app/settings", label: "Settings", icon: Settings, tour: "nav-settings" },
 ];
 
 export default function AppSidebar() {
@@ -81,6 +81,7 @@ export default function AppSidebar() {
             href: string;
             label: string;
             icon: React.ComponentType<{ className?: string }>;
+            tour?: string;
           };
           const isActive =
             pathname === navItem.href ||
@@ -91,6 +92,7 @@ export default function AppSidebar() {
             <Link
               key={navItem.href}
               href={navItem.href}
+              data-tour={navItem.tour}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                 isActive
                   ? "bg-accent/10 text-accent font-medium"

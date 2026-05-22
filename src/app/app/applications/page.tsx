@@ -5,9 +5,10 @@ import {
   FileText,
   Loader2,
   ChevronDown,
-  ExternalLink,
   Trash2,
+  PenTool,
 } from "lucide-react";
+import ApplicationWorkspace from "@/components/ApplicationWorkspace";
 
 interface Application {
   id: number;
@@ -63,6 +64,7 @@ export default function ApplicationsPage() {
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
+  const [workspaceId, setWorkspaceId] = useState<number | null>(null);
 
   const fetchApps = useCallback(async () => {
     try {
@@ -96,7 +98,6 @@ export default function ApplicationsPage() {
     setApps((prev) =>
       prev.map((a) => (a.id === id ? { ...a, notes } : a))
     );
-    // Debounced save — fire immediately for now
     try {
       await fetch("/api/app/applications", {
         method: "PATCH",
@@ -115,6 +116,21 @@ export default function ApplicationsPage() {
         body: JSON.stringify({ id }),
       });
     } catch {}
+  }
+
+  // If workspace is open, show it
+  if (workspaceId !== null) {
+    return (
+      <div className="p-6 max-w-5xl">
+        <ApplicationWorkspace
+          applicationId={workspaceId}
+          onBack={() => {
+            setWorkspaceId(null);
+            fetchApps(); // Refresh list in case status changed
+          }}
+        />
+      </div>
+    );
   }
 
   // Group applications by status
@@ -215,23 +231,32 @@ export default function ApplicationsPage() {
 
                       {expandedId === app.id && (
                         <div className="px-4 pb-4 pt-0 border-t border-border space-y-4">
-                          <div className="pt-4">
-                            <label className="text-[11px] font-medium text-muted uppercase tracking-wider block mb-1.5">
-                              Status
-                            </label>
-                            <select
-                              value={app.status}
-                              onChange={(e) =>
-                                updateStatus(app.id, e.target.value)
-                              }
-                              className="px-3 py-2 bg-surface border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40"
+                          <div className="pt-4 flex items-center gap-2 flex-wrap">
+                            <div>
+                              <label className="text-[11px] font-medium text-muted uppercase tracking-wider block mb-1.5">
+                                Status
+                              </label>
+                              <select
+                                value={app.status}
+                                onChange={(e) =>
+                                  updateStatus(app.id, e.target.value)
+                                }
+                                className="px-3 py-2 bg-surface border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40"
+                              >
+                                {STATUS_STEPS.map((s) => (
+                                  <option key={s} value={s}>
+                                    {STATUS_LABELS[s]}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <button
+                              onClick={() => setWorkspaceId(app.id)}
+                              className="flex items-center gap-2 px-4 py-2 mt-5 bg-gradient-to-r from-accent to-purple-500 text-white text-sm font-medium rounded-lg hover:opacity-90 transition-all duration-150"
                             >
-                              {STATUS_STEPS.map((s) => (
-                                <option key={s} value={s}>
-                                  {STATUS_LABELS[s]}
-                                </option>
-                              ))}
-                            </select>
+                              <PenTool size={14} />
+                              Open Workspace
+                            </button>
                           </div>
                           <div>
                             <label className="text-[11px] font-medium text-muted uppercase tracking-wider block mb-1.5">

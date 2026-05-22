@@ -3,8 +3,25 @@ import { db, applications, opportunities } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { eq, and } from "drizzle-orm";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const userId = await requireAuth();
+
+  // Single application by id
+  const idParam = request.nextUrl.searchParams.get("id");
+  if (idParam) {
+    const [app] = await db
+      .select()
+      .from(applications)
+      .where(
+        and(eq(applications.id, parseInt(idParam)), eq(applications.userId, userId))
+      )
+      .limit(1);
+
+    if (!app) {
+      return Response.json({ error: "Not found" }, { status: 404 });
+    }
+    return Response.json({ application: app });
+  }
 
   const results = await db
     .select({

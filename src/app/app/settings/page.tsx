@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Settings, Loader2, CreditCard, Key, ExternalLink } from "lucide-react";
+import { Settings, Loader2, CreditCard, Key, ExternalLink, RotateCcw } from "lucide-react";
 
 export default function SettingsPage() {
   const [subscription, setSubscription] = useState<{
@@ -92,6 +92,27 @@ export default function SettingsPage() {
             </a>
           </div>
         )}
+      </div>
+
+      {/* Guided Tour */}
+      <div className="bg-card border border-border rounded-xl p-6 mb-6">
+        <div className="flex items-center gap-3 mb-4">
+          <RotateCcw className="w-5 h-5 text-accent" />
+          <h2 className="font-semibold">Guided Tour</h2>
+        </div>
+        <p className="text-sm text-muted mb-3">
+          Restart the onboarding tour to learn about all FundFly features.
+        </p>
+        <button
+          onClick={() => {
+            localStorage.removeItem("fundfly_tour_completed");
+            window.dispatchEvent(new Event("fundfly:start-tour"));
+          }}
+          className="inline-flex items-center gap-2 bg-accent text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+          Restart Tour
+        </button>
       </div>
 
       {/* Desktop app key */}
