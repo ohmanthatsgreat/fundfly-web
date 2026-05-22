@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db, applications, opportunities } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export async function GET() {
   const userId = await requireAuth();
@@ -37,4 +37,44 @@ export async function POST(request: NextRequest) {
     .returning();
 
   return Response.json({ application: app });
+}
+
+export async function PATCH(request: NextRequest) {
+  const userId = await requireAuth();
+  const { id, status, notes } = await request.json();
+
+  if (!id) {
+    return Response.json({ error: "Missing application id" }, { status: 400 });
+  }
+
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  if (status !== undefined) updates.status = status;
+  if (notes !== undefined) updates.notes = notes;
+
+  const [updated] = await db
+    .update(applications)
+    .set(updates)
+    .where(and(eq(applications.id, id), eq(applications.userId, userId)))
+    .returning();
+
+  if (!updated) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return Response.json({ application: updated });
+}
+
+export async function DELETE(request: NextRequest) {
+  const userId = await requireAuth();
+  const { id } = await request.json();
+
+  if (!id) {
+    return Response.json({ error: "Missing application id" }, { status: 400 });
+  }
+
+  await db
+    .delete(applications)
+    .where(and(eq(applications.id, id), eq(applications.userId, userId)));
+
+  return Response.json({ success: true });
 }

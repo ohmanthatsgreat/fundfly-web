@@ -1,19 +1,22 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Search, SlidersHorizontal, Loader2 } from "lucide-react";
+import { Search, SlidersHorizontal, Loader2, X } from "lucide-react";
 import OpportunityCard, { type Opportunity } from "./OpportunityCard";
+import OpportunityDetail from "./OpportunityDetail";
 
 interface Props {
   endpoint?: string;
   title: string;
   filters?: Record<string, string>;
+  showTitle?: boolean;
 }
 
 export default function OpportunityList({
   endpoint = "/api/app/opportunities",
   title,
   filters = {},
+  showTitle = true,
 }: Props) {
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
@@ -23,11 +26,20 @@ export default function OpportunityList({
   const [total, setTotal] = useState(0);
   const [sort, setSort] = useState("deadline_asc");
   const [selected, setSelected] = useState<Opportunity | null>(null);
+
+  // Advanced filters
+  const [showFilters, setShowFilters] = useState(false);
+  const [agencyFilter, setAgencyFilter] = useState("");
+  const [minFunding, setMinFunding] = useState("");
+  const [maxFunding, setMaxFunding] = useState("");
+
   const limit = 25;
 
   // Stabilize filters reference to prevent infinite re-renders
   const filtersKey = JSON.stringify(filters);
   const stableFilters = useMemo(() => filters, [filtersKey]);
+
+  const hasActiveFilters = agencyFilter || minFunding || maxFunding;
 
   const fetchOpportunities = useCallback(async () => {
     setLoading(true);
@@ -37,7 +49,15 @@ export default function OpportunityList({
       sort,
       ...stableFilters,
       ...(search ? { search } : {}),
+      ...(agencyFilter ? { search: agencyFilter } : {}),
+      ...(minFunding ? { fundingMin: minFunding } : {}),
+      ...(maxFunding ? { fundingMax: maxFunding } : {}),
     });
+
+    // If there's both search text and agency filter, combine them
+    if (search && agencyFilter) {
+      params.set("search", search);
+    }
 
     try {
       const res = await fetch(`${endpoint}?${params}`);
@@ -48,13 +68,19 @@ export default function OpportunityList({
       setOpportunities([]);
     }
     setLoading(false);
-  }, [endpoint, page, sort, search, stableFilters]);
+  }, [endpoint, page, sort, search, stableFilters, agencyFilter, minFunding, maxFunding]);
 
   const fetchSaved = useCallback(async () => {
     try {
       const res = await fetch("/api/app/saved");
       const data = await res.json();
-      setSavedIds(new Set((data.saved || []).map((s: { opportunityId: string }) => s.opportunityId)));
+      setSavedIds(
+        new Set(
+          (data.saved || []).map(
+            (s: { opportunityId: string }) => s.opportunityId
+          )
+        )
+      );
     } catch {}
   }, []);
 
@@ -88,50 +114,153 @@ export default function OpportunityList({
     });
   }
 
+  async function handleStartApplication(id: string) {
+    await fetch("/api/app/applications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ opportunityId: id }),
+    });
+    setSelected(null);
+  }
+
   const totalPages = Math.ceil(total / limit);
 
   return (
-    <div className="p-6 max-w-5xl">
+    <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">{title}</h1>
-          <p className="text-sm text-muted mt-1">
-            {total.toLocaleString()} opportunities
-          </p>
+      {showTitle && (
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold">{title}</h1>
+            <p className="text-sm text-muted mt-1">
+              {total.toLocaleString()} opportunities
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Search + Sort */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-          <input
-            type="text"
-            placeholder="Search opportunities..."
-            value={search}
+      {/* Search + Sort + Filters */}
+      <div className="space-y-3 mb-6">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 max-w-md group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted group-focus-within:text-accent transition-colors" />
+            <input
+              type="text"
+              placeholder="Search opportunities..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className="w-full pl-9 pr-8 py-2.5 bg-surface border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+            />
+            {search && (
+              <button
+                onClick={() => {
+                  setSearch("");
+                  setPage(1);
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground transition-colors"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
+          <select
+            value={sort}
             onChange={(e) => {
-              setSearch(e.target.value);
+              setSort(e.target.value);
               setPage(1);
             }}
-            className="w-full pl-9 pr-4 py-2.5 bg-surface border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
-          />
+            className="bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 appearance-none"
+          >
+            <option value="deadline_asc">Deadline (soonest)</option>
+            <option value="deadline_desc">Deadline (latest)</option>
+            <option value="posted_desc">Newest</option>
+            <option value="funding_desc">Funding (high to low)</option>
+            <option value="funding_asc">Funding (low to high)</option>
+          </select>
+
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center gap-2 px-3 py-2.5 border rounded-lg text-sm transition-all duration-150 ${
+              hasActiveFilters
+                ? "border-accent/40 bg-accent/10 text-accent"
+                : "border-border bg-surface text-muted hover:text-foreground hover:border-border"
+            }`}
+          >
+            <SlidersHorizontal size={14} />
+            Filters
+            {hasActiveFilters && (
+              <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+            )}
+          </button>
         </div>
 
-        <select
-          value={sort}
-          onChange={(e) => {
-            setSort(e.target.value);
-            setPage(1);
-          }}
-          className="bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 appearance-none"
-        >
-          <option value="deadline_asc">Deadline (soonest)</option>
-          <option value="deadline_desc">Deadline (latest)</option>
-          <option value="posted_desc">Newest</option>
-          <option value="funding_desc">Funding (high to low)</option>
-          <option value="funding_asc">Funding (low to high)</option>
-        </select>
+        {/* Advanced Filters */}
+        {showFilters && (
+          <div className="flex flex-wrap items-end gap-3 p-4 bg-card border border-border rounded-lg">
+            <div className="flex-1 min-w-[200px]">
+              <label className="text-[11px] font-medium text-muted uppercase tracking-wider block mb-1.5">
+                Agency
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Department of Energy"
+                value={agencyFilter}
+                onChange={(e) => {
+                  setAgencyFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 transition-all"
+              />
+            </div>
+            <div className="w-40">
+              <label className="text-[11px] font-medium text-muted uppercase tracking-wider block mb-1.5">
+                Min Funding
+              </label>
+              <input
+                type="text"
+                placeholder="$0"
+                value={minFunding}
+                onChange={(e) => {
+                  setMinFunding(e.target.value.replace(/[^0-9]/g, ""));
+                  setPage(1);
+                }}
+                className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 transition-all"
+              />
+            </div>
+            <div className="w-40">
+              <label className="text-[11px] font-medium text-muted uppercase tracking-wider block mb-1.5">
+                Max Funding
+              </label>
+              <input
+                type="text"
+                placeholder="No max"
+                value={maxFunding}
+                onChange={(e) => {
+                  setMaxFunding(e.target.value.replace(/[^0-9]/g, ""));
+                  setPage(1);
+                }}
+                className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 transition-all"
+              />
+            </div>
+            {hasActiveFilters && (
+              <button
+                onClick={() => {
+                  setAgencyFilter("");
+                  setMinFunding("");
+                  setMaxFunding("");
+                  setPage(1);
+                }}
+                className="px-3 py-2 text-sm text-danger hover:bg-danger/10 rounded-lg transition-colors"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Results */}
@@ -143,7 +272,9 @@ export default function OpportunityList({
         <div className="text-center py-20">
           <SlidersHorizontal className="w-10 h-10 text-muted mx-auto mb-3" />
           <p className="text-muted">No opportunities found</p>
-          <p className="text-sm text-muted mt-1">Try adjusting your search or filters</p>
+          <p className="text-sm text-muted mt-1">
+            Try adjusting your search or filters
+          </p>
         </div>
       ) : (
         <>
@@ -185,75 +316,16 @@ export default function OpportunityList({
         </>
       )}
 
-      {/* Detail modal */}
+      {/* Detail panel */}
       {selected && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6"
-          onClick={() => setSelected(null)}
-        >
-          <div
-            className="bg-card border border-border rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto p-8"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-xl font-bold mb-2">{selected.title}</h2>
-            {selected.agency && (
-              <p className="text-sm text-muted mb-4">{selected.agency}</p>
-            )}
-
-            <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-              <div>
-                <span className="text-muted">Type:</span>{" "}
-                <span className="font-medium uppercase">{selected.type}</span>
-              </div>
-              <div>
-                <span className="text-muted">Status:</span>{" "}
-                <span className="font-medium">{selected.status}</span>
-              </div>
-              <div>
-                <span className="text-muted">Funding:</span>{" "}
-                <span className="font-medium">
-                  {selected.fundingMin || selected.fundingMax
-                    ? `$${(selected.fundingMin || 0).toLocaleString()} - $${(selected.fundingMax || 0).toLocaleString()}`
-                    : "Varies"}
-                </span>
-              </div>
-              <div>
-                <span className="text-muted">Deadline:</span>{" "}
-                <span className="font-medium">
-                  {selected.deadline || "Rolling"}
-                </span>
-              </div>
-            </div>
-
-            {selected.description && (
-              <div className="mb-6">
-                <h3 className="font-semibold text-sm mb-2">Description</h3>
-                <p className="text-sm text-muted leading-relaxed whitespace-pre-wrap">
-                  {selected.description}
-                </p>
-              </div>
-            )}
-
-            <div className="flex items-center gap-3">
-              {(selected.grantUrl || selected.sourceUrl) && (
-                <a
-                  href={selected.grantUrl || selected.sourceUrl || "#"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="bg-accent text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors"
-                >
-                  View Original Listing
-                </a>
-              )}
-              <button
-                onClick={() => setSelected(null)}
-                className="px-4 py-2 rounded-lg text-sm border border-border hover:bg-surface transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+        <OpportunityDetail
+          opportunity={selected}
+          isSaved={savedIds.has(selected.id)}
+          onClose={() => setSelected(null)}
+          onSave={handleSave}
+          onUnsave={handleUnsave}
+          onStartApplication={handleStartApplication}
+        />
       )}
     </div>
   );
