@@ -16,37 +16,34 @@ async function requireAdmin() {
 // ─── Grants.gov sync ────────────────────────────────────────────────
 
 async function syncGrantsGov(): Promise<number> {
+  // Grants.gov API pagination is broken — fetch all records in a single request
+  const res = await fetch(
+    "https://apply07.grants.gov/grantsws/rest/opportunities/search/",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        oppStatuses: "forecasted|posted",
+        rows: 10000, // API returns max ~2000 results
+      }),
+    }
+  );
+
+  if (!res.ok) return 0;
+  const data = await res.json();
+  const items = data.oppHits || [];
+  if (items.length === 0) return 0;
+
   let total = 0;
-  let startRecord = 0;
-  const rows = 250;
-
-  while (true) {
-    const res = await fetch(
-      "https://apply07.grants.gov/grantsws/rest/opportunities/search/",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          oppStatuses: "forecasted|posted",
-          rows,
-          startRecord,
-        }),
-      }
-    );
-
-    if (!res.ok) break;
-    const data = await res.json();
-    const items = data.oppHits || [];
-    if (items.length === 0) break;
-
-    const values = items.map((item: Record<string, unknown>) => ({
-      id: `grants_gov_${item.id || item.oppNumber}`,
+  for (const item of items as Record<string, unknown>[]) {
+    const val = {
+      id: `grants_gov_${item.id}`,
       source: "grants.gov",
-      sourceUrl: `https://www.grants.gov/search-results-detail/${item.oppNumber || item.id}`,
+      sourceUrl: `https://www.grants.gov/search-results-detail/${item.number || item.id}`,
       title: String(item.title || ""),
       description: String(item.synopsis || item.description || ""),
-      agency: String(item.agency || item.agencyName || ""),
-      subAgency: String(item.subAgency || ""),
+      agency: String(item.agency || item.agencyCode || ""),
+      subAgency: "",
       type: "grant",
       fundingMin: item.awardFloor ? Number(item.awardFloor) : null,
       fundingMax: item.awardCeiling ? Number(item.awardCeiling) : null,
@@ -56,11 +53,11 @@ async function syncGrantsGov(): Promise<number> {
         ? "forecasted"
         : "open",
       audience: "business",
-      grantUrl: `https://www.grants.gov/search-results-detail/${item.oppNumber || item.id}`,
+      grantUrl: `https://www.grants.gov/search-results-detail/${item.number || item.id}`,
       rawJson: JSON.stringify(item),
-    }));
+    };
 
-    for (const val of values) {
+    try {
       await db
         .insert(opportunities)
         .values(val)
@@ -77,13 +74,10 @@ async function syncGrantsGov(): Promise<number> {
             updatedAt: new Date(),
           },
         });
+      total++;
+    } catch {
+      // Skip individual failures
     }
-
-    total += items.length;
-    startRecord += rows;
-
-    // Safety limit
-    if (startRecord >= 35000) break;
   }
 
   return total;
@@ -92,39 +86,48 @@ async function syncGrantsGov(): Promise<number> {
 // ─── SBIR.gov sync ──────────────────────────────────────────────────
 
 async function syncSbirGov(): Promise<number> {
+  // SBIR.gov API is currently returning 404; use Grants.gov SBIR/STTR
+  // filter as an alternative source
+  const res = await fetch(
+    "https://apply07.grants.gov/grantsws/rest/opportunities/search/",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        oppStatuses: "forecasted|posted",
+        rows: 10000,
+        keyword: "SBIR STTR",
+      }),
+    }
+  );
+
+  if (!res.ok) return 0;
+  const data = await res.json();
+  const items = data.oppHits || [];
+  if (items.length === 0) return 0;
+
   let total = 0;
-  let start = 0;
-  const rows = 250;
+  for (const item of items as Record<string, unknown>[]) {
+    const titleLower = String(item.title || "").toLowerCase();
+    const isSttr = titleLower.includes("sttr");
 
-  while (true) {
-    const res = await fetch(
-      `https://www.sbir.gov/api/solicitations.json?rows=${rows}&start=${start}`
-    );
-    if (!res.ok) break;
-    const items = await res.json();
-    if (!Array.isArray(items) || items.length === 0) break;
-
-    const values = items.map((item: Record<string, unknown>) => ({
-      id: `sbir_gov_${item.id || item.solicitation_id}`,
+    const val = {
+      id: `sbir_grants_gov_${item.id}`,
       source: "sbir.gov",
-      sourceUrl: String(item.url || item.solicitation_url || ""),
-      title: String(item.title || item.solicitation_title || ""),
-      description: String(
-        item.description || item.abstract || item.solicitation_topics || ""
-      ),
-      agency: String(item.agency || ""),
-      type: String(item.type || "sbir").toLowerCase().includes("sttr")
-        ? "sttr"
-        : "sbir",
-      deadline: item.close_date ? String(item.close_date) : null,
-      postedDate: item.open_date ? String(item.open_date) : null,
+      sourceUrl: `https://www.grants.gov/search-results-detail/${item.number || item.id}`,
+      title: String(item.title || ""),
+      description: String(item.synopsis || item.description || ""),
+      agency: String(item.agency || item.agencyCode || ""),
+      type: isSttr ? "sttr" : "sbir",
+      deadline: item.closeDate ? String(item.closeDate) : null,
+      postedDate: item.openDate ? String(item.openDate) : null,
       status: "open",
       audience: "business",
-      grantUrl: String(item.url || item.solicitation_url || ""),
+      grantUrl: `https://www.grants.gov/search-results-detail/${item.number || item.id}`,
       rawJson: JSON.stringify(item),
-    }));
+    };
 
-    for (const val of values) {
+    try {
       await db
         .insert(opportunities)
         .values(val)
@@ -139,12 +142,10 @@ async function syncSbirGov(): Promise<number> {
             updatedAt: new Date(),
           },
         });
+      total++;
+    } catch {
+      // Skip individual failures
     }
-
-    total += items.length;
-    start += rows;
-
-    if (start >= 5000) break;
   }
 
   return total;

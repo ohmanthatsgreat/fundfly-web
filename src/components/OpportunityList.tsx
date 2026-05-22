@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Search, SlidersHorizontal, Loader2 } from "lucide-react";
 import OpportunityCard, { type Opportunity } from "./OpportunityCard";
 
@@ -25,13 +25,17 @@ export default function OpportunityList({
   const [selected, setSelected] = useState<Opportunity | null>(null);
   const limit = 25;
 
+  // Stabilize filters reference to prevent infinite re-renders
+  const filtersKey = JSON.stringify(filters);
+  const stableFilters = useMemo(() => filters, [filtersKey]);
+
   const fetchOpportunities = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams({
       page: String(page),
       limit: String(limit),
       sort,
-      ...filters,
+      ...stableFilters,
       ...(search ? { search } : {}),
     });
 
@@ -44,7 +48,7 @@ export default function OpportunityList({
       setOpportunities([]);
     }
     setLoading(false);
-  }, [endpoint, page, sort, search, filters]);
+  }, [endpoint, page, sort, search, stableFilters]);
 
   const fetchSaved = useCallback(async () => {
     try {
