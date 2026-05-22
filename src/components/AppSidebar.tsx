@@ -1,0 +1,117 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { UserButton } from "@clerk/nextjs";
+import {
+  LayoutGrid,
+  Briefcase,
+  Beaker,
+  User,
+  Bookmark,
+  Brain,
+  FileText,
+  Archive,
+  Building2,
+  UserCircle,
+  Settings,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import { useState } from "react";
+
+const navItems = [
+  { href: "/app", label: "All Opportunities", icon: LayoutGrid },
+  { href: "/app/biz-grants", label: "Biz Grants", icon: Briefcase },
+  { href: "/app/sbir", label: "SBIR / STTR", icon: Beaker },
+  { href: "/app/personal", label: "Personal Grants", icon: User },
+  { type: "divider" as const },
+  { href: "/app/saved", label: "Saved", icon: Bookmark },
+  { href: "/app/matches", label: "AI Matches", icon: Brain },
+  { href: "/app/applications", label: "Applications", icon: FileText },
+  { href: "/app/archive", label: "Archive", icon: Archive },
+  { type: "divider" as const },
+  { href: "/app/organization", label: "Organization", icon: Building2 },
+  { href: "/app/personal-profile", label: "Personal Profile", icon: UserCircle },
+  { href: "/app/settings", label: "Settings", icon: Settings },
+];
+
+export default function AppSidebar() {
+  const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
+
+  return (
+    <aside
+      className={`flex flex-col bg-surface border-r border-border transition-all duration-200 ${
+        collapsed ? "w-16" : "w-60"
+      }`}
+    >
+      {/* Logo */}
+      <div className="flex items-center justify-between h-16 px-4 border-b border-border">
+        <Link href="/app" className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center shrink-0">
+            <span className="text-white font-bold text-sm">FF</span>
+          </div>
+          {!collapsed && (
+            <span className="font-semibold text-base tracking-tight">
+              FundFly
+            </span>
+          )}
+        </Link>
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="text-muted hover:text-foreground transition-colors"
+        >
+          {collapsed ? (
+            <ChevronRight className="w-4 h-4" />
+          ) : (
+            <ChevronLeft className="w-4 h-4" />
+          )}
+        </button>
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
+        {navItems.map((item, i) => {
+          if ("type" in item && item.type === "divider") {
+            return <div key={i} className="h-px bg-border my-2 mx-2" />;
+          }
+
+          const navItem = item as {
+            href: string;
+            label: string;
+            icon: React.ComponentType<{ className?: string }>;
+          };
+          const isActive =
+            pathname === navItem.href ||
+            (navItem.href !== "/app" && pathname.startsWith(navItem.href));
+          const Icon = navItem.icon;
+
+          return (
+            <Link
+              key={navItem.href}
+              href={navItem.href}
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                isActive
+                  ? "bg-accent/10 text-accent font-medium"
+                  : "text-muted hover:text-foreground hover:bg-card"
+              }`}
+              title={collapsed ? navItem.label : undefined}
+            >
+              <Icon className="w-4.5 h-4.5 shrink-0" />
+              {!collapsed && <span>{navItem.label}</span>}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* User */}
+      <div className="border-t border-border p-3 flex items-center gap-3">
+        <UserButton />
+        {!collapsed && (
+          <span className="text-xs text-muted truncate">Account</span>
+        )}
+      </div>
+    </aside>
+  );
+}
