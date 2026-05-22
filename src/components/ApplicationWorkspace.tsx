@@ -13,7 +13,9 @@ import {
   ChevronDown,
   ChevronUp,
   FileText,
+  Globe,
 } from "lucide-react";
+import SubmissionPlanView from "./SubmissionPlanView";
 
 type Section = {
   id: number;
@@ -69,6 +71,7 @@ export default function ApplicationWorkspace({
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showSubmission, setShowSubmission] = useState(false);
 
   const fetchApp = useCallback(async () => {
     try {
@@ -283,6 +286,19 @@ export default function ApplicationWorkspace({
       ? Math.round((completedCount / totalSections) * 100)
       : 0;
 
+  // Submission agent view
+  if (showSubmission) {
+    return (
+      <SubmissionPlanView
+        applicationId={applicationId}
+        onBack={() => setShowSubmission(false)}
+        hasSections={hasSections}
+        onGenerateSections={handleGenerateAll}
+        generatingSections={generating}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -370,6 +386,12 @@ export default function ApplicationWorkspace({
                 <ExternalLink size={14} /> Submit on Portal
               </a>
             )}
+            <button
+              onClick={() => setShowSubmission(true)}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium bg-gradient-to-r from-teal-500 to-emerald-500 text-white rounded-lg hover:opacity-90 transition-all duration-150"
+            >
+              <Globe size={14} /> Submit via Agent
+            </button>
           </>
         )}
       </div>
@@ -412,11 +434,17 @@ export default function ApplicationWorkspace({
             <FileText size={24} className="text-muted" />
           </div>
           <h3 className="text-sm font-semibold mb-1">No sections yet</h3>
-          <p className="text-sm text-muted max-w-sm">
+          <p className="text-sm text-muted max-w-sm mb-4">
             Click &quot;Generate Application with AI&quot; to create all
             application sections using your organization profile and the
             opportunity details.
           </p>
+          <button
+            onClick={() => setShowSubmission(true)}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-border text-muted hover:text-foreground rounded-lg hover:bg-surface transition-all duration-150"
+          >
+            <Globe size={14} /> Research Submission Plan
+          </button>
         </div>
       )}
 
