@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db, opportunities } from "@/lib/db";
 import { sql } from "drizzle-orm";
+import { syncZeffy, enrichZeffyGrants } from "@/lib/ingest-zeffy";
 
 const ADMIN_USER_IDS = (process.env.ADMIN_USER_IDS || "").split(",").filter(Boolean);
 
@@ -194,6 +195,8 @@ export async function POST(request: NextRequest) {
   const results = {
     grantsGov: 0,
     sbirGov: 0,
+    zeffy: { total: 0, inserted: 0, categories: [] as string[] },
+    zeffyEnrichment: { enriched: 0, failed: 0 },
     errors: [] as string[],
   };
 
@@ -207,6 +210,19 @@ export async function POST(request: NextRequest) {
     results.sbirGov = await syncSbirGov();
   } catch (err) {
     results.errors.push(`SBIR.gov: ${String(err)}`);
+  }
+
+  try {
+    results.zeffy = await syncZeffy();
+  } catch (err) {
+    results.errors.push(`Zeffy: ${String(err)}`);
+  }
+
+  // Enrich unenriched Zeffy grants (scrape detail pages)
+  try {
+    results.zeffyEnrichment = await enrichZeffyGrants(15);
+  } catch (err) {
+    results.errors.push(`Zeffy enrichment: ${String(err)}`);
   }
 
   // Get total count

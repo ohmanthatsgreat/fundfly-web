@@ -33,6 +33,7 @@ const typeBadgeColors: Record<string, string> = {
   sbir: "bg-purple-100 text-purple-700",
   sttr: "bg-violet-100 text-violet-700",
   foundation: "bg-amber-100 text-amber-700",
+  scholarship: "bg-teal-100 text-teal-700",
   personal: "bg-emerald-100 text-emerald-700",
 };
 

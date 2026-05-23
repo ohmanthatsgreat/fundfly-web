@@ -71,7 +71,13 @@ type UserRow = {
 
 type SyncResult = {
   success: boolean;
-  synced: { grantsGov: number; sbirGov: number; errors: string[] };
+  synced: {
+    grantsGov: number;
+    sbirGov: number;
+    zeffy: { total: number; inserted: number; categories: string[] };
+    zeffyEnrichment: { enriched: number; failed: number };
+    errors: string[];
+  };
   totalOpportunities: number;
   durationSeconds: string;
 };
@@ -317,7 +323,13 @@ export default function AdminPage() {
     } catch {
       setSyncResult({
         success: false,
-        synced: { grantsGov: 0, sbirGov: 0, errors: ["Network error"] },
+        synced: {
+          grantsGov: 0,
+          sbirGov: 0,
+          zeffy: { total: 0, inserted: 0, categories: [] },
+          zeffyEnrichment: { enriched: 0, failed: 0 },
+          errors: ["Network error"],
+        },
         totalOpportunities: 0,
         durationSeconds: "0",
       });
@@ -509,6 +521,23 @@ export default function AdminPage() {
               <div>
                 SBIR/STTR: {syncResult.synced.sbirGov.toLocaleString()} records
               </div>
+              <div>
+                Zeffy: {syncResult.synced.zeffy.inserted.toLocaleString()} new
+                {syncResult.synced.zeffy.categories.length > 0 && (
+                  <span className="text-muted ml-1">
+                    ({syncResult.synced.zeffy.categories.join(", ")})
+                  </span>
+                )}
+              </div>
+              {(syncResult.synced.zeffyEnrichment.enriched > 0 ||
+                syncResult.synced.zeffyEnrichment.failed > 0) && (
+                <div>
+                  Zeffy enrichment: {syncResult.synced.zeffyEnrichment.enriched}{" "}
+                  enriched
+                  {syncResult.synced.zeffyEnrichment.failed > 0 &&
+                    `, ${syncResult.synced.zeffyEnrichment.failed} failed`}
+                </div>
+              )}
               <div>
                 Total in DB:{" "}
                 {Number(syncResult.totalOpportunities).toLocaleString()}

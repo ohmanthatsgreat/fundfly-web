@@ -15,11 +15,11 @@ export async function GET() {
     await Promise.all([
       // Total opportunities
       db.select({ count: count() }).from(opportunities),
-      // Grants count
+      // Grants count (includes foundation/scholarship from Zeffy)
       db
         .select({ count: count() })
         .from(opportunities)
-        .where(eq(opportunities.type, "grant")),
+        .where(inArray(opportunities.type, ["grant", "foundation", "scholarship"])),
       // SBIR/STTR count
       db
         .select({ count: count() })
