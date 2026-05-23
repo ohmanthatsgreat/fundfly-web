@@ -30,7 +30,7 @@ export const subscriptions = pgTable(
       .notNull()
       .references(() => customers.id),
     stripeSubscriptionId: text("stripe_subscription_id").notNull().unique(),
-    plan: text("plan").notNull(), // 'matching' | 'submissions'
+    plan: text("plan").notNull(), // 'matching' | 'checklist' | 'auto_submission' | 'bundle'
     status: text("status").notNull(), // 'active' | 'past_due' | 'canceled' | 'incomplete' | 'trialing' | 'paused'
     currentPeriodEnd: timestamp("current_period_end").notNull(),
     cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false),
@@ -302,6 +302,35 @@ export const submissionPlans = pgTable(
     updatedAt: timestamp("updated_at").defaultNow(),
   },
   (t) => [unique("uq_sub_plan").on(t.applicationId)]
+);
+
+// ─── AI Usage & Credits ────────────────────────────────────────────
+
+export const aiUsage = pgTable(
+  "ai_usage",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    periodStart: timestamp("period_start").notNull(), // billing period start
+    totalCostCents: integer("total_cost_cents").default(0).notNull(), // cumulative AI cost in cents
+    requestCount: integer("request_count").default(0).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (t) => [
+    unique("uq_ai_usage_period").on(t.userId, t.periodStart),
+    index("idx_ai_usage_user").on(t.userId),
+  ]
+);
+
+export const aiCredits = pgTable(
+  "ai_credits",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull().unique(),
+    balanceCents: integer("balance_cents").default(0).notNull(), // purchased credits remaining
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (t) => [index("idx_ai_credits_user").on(t.userId)]
 );
 
 export const userSettings = pgTable(

@@ -2,9 +2,18 @@ import { NextRequest } from "next/server";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { stripe } from "@/lib/stripe";
 import { getOrCreateCustomer } from "@/lib/auth";
+import type { Plan } from "@/lib/auth";
+
+const VALID_PLANS: Plan[] = ["matching", "checklist", "auto_submission", "bundle"];
+
+const PLAN_PRICE_ENV: Record<Plan, string> = {
+  matching: "STRIPE_MATCHING_PRICE_ID",
+  checklist: "STRIPE_CHECKLIST_PRICE_ID",
+  auto_submission: "STRIPE_AUTO_SUBMISSION_PRICE_ID",
+  bundle: "STRIPE_BUNDLE_PRICE_ID",
+};
 
 function getBaseUrl(request: NextRequest): string {
-  // Prefer explicit env var, fall back to request headers
   if (process.env.NEXT_PUBLIC_URL && process.env.NEXT_PUBLIC_URL !== "http://localhost:3000") {
     return process.env.NEXT_PUBLIC_URL;
   }
@@ -21,17 +30,15 @@ export async function POST(request: NextRequest) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const { plan } = await request.json();
-  if (!["matching", "submissions"].includes(plan)) {
+  if (!VALID_PLANS.includes(plan)) {
     return Response.json({ error: "Invalid plan" }, { status: 400 });
   }
 
-  const priceId =
-    plan === "matching"
-      ? process.env.STRIPE_MATCHING_PRICE_ID
-      : process.env.STRIPE_SUBMISSIONS_PRICE_ID;
+  const envKey = PLAN_PRICE_ENV[plan as Plan];
+  const priceId = process.env[envKey];
 
   if (!priceId) {
-    console.error(`[checkout] Missing STRIPE_${plan.toUpperCase()}_PRICE_ID env var`);
+    console.error(`[checkout] Missing ${envKey} env var`);
     return Response.json(
       { error: "Checkout not configured. Please set Stripe price IDs." },
       { status: 500 }
@@ -54,7 +61,6 @@ export async function POST(request: NextRequest) {
     });
     stripeCustomerId = stripeCustomer.id;
 
-    // Update our DB
     const { db, customers: customersTable } = await import("@/lib/db");
     const { eq } = await import("drizzle-orm");
     await db

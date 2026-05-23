@@ -586,7 +586,7 @@ export default function ApplicationWorkspace({
       )}
       {showUpgrade && (
         <UpgradeModal
-          feature="submissions"
+          feature="checklist"
           onClose={() => setShowUpgrade(false)}
         />
       )}

@@ -27,11 +27,22 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const { action, plan_id } = body;
 
-  // Check subscription — submission agent requires "submissions" plan
-  const sub = await checkSubscription(userId, "submissions");
+  // Check subscription — submission agent requires "auto_submission" feature
+  const sub = await checkSubscription(userId, "auto_submission");
   if (!sub.allowed) {
+    // Check if at usage limit vs not subscribed
+    if (sub.usage?.atLimit) {
+      return Response.json(
+        {
+          error: "usage_limit_reached",
+          feature: "auto_submission",
+          usage: sub.usage,
+        },
+        { status: 403 }
+      );
+    }
     return Response.json(
-      { error: "subscription_required", feature: "submissions" },
+      { error: "subscription_required", feature: "auto_submission" },
       { status: 403 }
     );
   }

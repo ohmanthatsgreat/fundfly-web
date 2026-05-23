@@ -14,11 +14,11 @@ export async function POST(request: NextRequest) {
   const userId = await requireAuth();
   const { application_id } = await request.json();
 
-  // Check subscription — submission planning requires "submissions" plan
-  const sub = await checkSubscription(userId, "submissions");
+  // Check subscription — submission planning requires "checklist" feature
+  const sub = await checkSubscription(userId, "checklist");
   if (!sub.allowed) {
     return Response.json(
-      { error: "subscription_required", feature: "submissions" },
+      { error: "subscription_required", feature: "checklist" },
       { status: 403 }
     );
   }

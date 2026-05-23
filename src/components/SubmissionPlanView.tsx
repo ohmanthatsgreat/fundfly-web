@@ -120,7 +120,7 @@ export default function SubmissionPlanView({
     []
   );
   const logsEndRef = useRef<HTMLDivElement>(null);
-  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState<"checklist" | "auto_submission" | null>(null);
 
   const fetchPlan = useCallback(async () => {
     try {
@@ -157,7 +157,7 @@ export default function SubmissionPlanView({
       });
       const data = await res.json();
       if (data.error === "subscription_required") {
-        setShowUpgrade(true);
+        setShowUpgrade("checklist");
         setGenerating(false);
         return;
       } else if (data.error) {
@@ -190,7 +190,7 @@ export default function SubmissionPlanView({
     });
     const startData = await startRes.json();
     if (startData.error === "subscription_required") {
-      setShowUpgrade(true);
+      setShowUpgrade("auto_submission");
       setPlanStatus("pending");
       return;
     }
@@ -405,8 +405,8 @@ export default function SubmissionPlanView({
         </div>
         {showUpgrade && (
           <UpgradeModal
-            feature="submissions"
-            onClose={() => setShowUpgrade(false)}
+            feature={showUpgrade}
+            onClose={() => setShowUpgrade(null)}
           />
         )}
       </div>
@@ -852,8 +852,8 @@ export default function SubmissionPlanView({
       )}
       {showUpgrade && (
         <UpgradeModal
-          feature="submissions"
-          onClose={() => setShowUpgrade(false)}
+          feature={showUpgrade}
+          onClose={() => setShowUpgrade(null)}
         />
       )}
     </div>
