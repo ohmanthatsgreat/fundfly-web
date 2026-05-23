@@ -280,6 +280,8 @@ export default function AdminPage() {
   const [userFilter, setUserFilter] = useState<"all" | "subscribed" | "free">(
     "all"
   );
+  const [stripeBypass, setStripeBypass] = useState(false);
+  const [bypassLoading, setBypassLoading] = useState(true);
 
   const loadData = useCallback(async () => {
     try {
@@ -307,7 +309,22 @@ export default function AdminPage() {
 
   useEffect(() => {
     loadData();
+    fetch("/api/admin/stripe-bypass")
+      .then((r) => r.json())
+      .then((d) => setStripeBypass(d.enabled))
+      .catch(() => {})
+      .finally(() => setBypassLoading(false));
   }, [loadData]);
+
+  async function toggleStripeBypass() {
+    const next = !stripeBypass;
+    setStripeBypass(next);
+    await fetch("/api/admin/stripe-bypass", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: next }),
+    });
+  }
 
   async function handleSync() {
     setSyncing(true);
@@ -375,6 +392,35 @@ export default function AdminPage() {
           Manage tenants, subscriptions, and data sources.
         </p>
       </div>
+
+      {/* Stripe Bypass Toggle */}
+      {!bypassLoading && (
+        <div className="bg-card border border-border rounded-xl p-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+              <CreditCard className="w-4 h-4 text-amber-600" />
+            </div>
+            <div>
+              <div className="text-sm font-medium">Stripe Gate Bypass</div>
+              <div className="text-xs text-muted">
+                Skip subscription checks for your admin account to test AI features
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={toggleStripeBypass}
+            className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
+              stripeBypass ? "bg-accent" : "bg-border"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
+                stripeBypass ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+      )}
 
       {/* Stats Grid */}
       {stats && (
