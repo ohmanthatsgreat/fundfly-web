@@ -65,6 +65,7 @@ export default function PricingPage() {
   const { isSignedIn } = useUser();
   const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubscribe(plan: string | null) {
     if (!plan) {
@@ -78,6 +79,7 @@ export default function PricingPage() {
     }
 
     setLoading(plan);
+    setError(null);
     try {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
@@ -85,10 +87,15 @@ export default function PricingPage() {
         body: JSON.stringify({ plan }),
       });
       const data = await res.json();
-      if (data.url) window.location.href = data.url;
+      if (data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      setError(data.error || "Failed to start checkout");
     } catch {
-      setLoading(null);
+      setError("Network error. Please try again.");
     }
+    setLoading(null);
   }
 
   return (
@@ -160,6 +167,12 @@ export default function PricingPage() {
               </div>
             ))}
           </div>
+
+          {error && (
+            <div className="mt-6 text-center">
+              <p className="text-sm text-danger">{error}</p>
+            </div>
+          )}
         </div>
       </section>
 

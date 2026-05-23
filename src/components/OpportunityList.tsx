@@ -126,7 +126,7 @@ export default function OpportunityList({
   const totalPages = Math.ceil(total / limit);
 
   return (
-    <div>
+    <div className="p-6 max-w-5xl">
       {/* Header */}
       {showTitle && (
         <div className="flex items-center justify-between mb-6">

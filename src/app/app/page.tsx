@@ -25,20 +25,22 @@ export default function DashboardPage() {
   }, []);
 
   return (
-    <div className="p-6 max-w-5xl space-y-6">
-      {/* Stats */}
-      {stats ? (
-        <StatsBar stats={stats} />
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[...Array(4)].map((_, i) => (
-            <div
-              key={i}
-              className="h-24 bg-surface border border-border rounded-xl animate-pulse"
-            />
-          ))}
-        </div>
-      )}
+    <div>
+      <div className="p-6 pb-0 max-w-5xl">
+        {/* Stats */}
+        {stats ? (
+          <StatsBar stats={stats} />
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[...Array(4)].map((_, i) => (
+              <div
+                key={i}
+                className="h-24 bg-surface border border-border rounded-xl animate-pulse"
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Opportunity list */}
       <OpportunityList title="All Opportunities" />

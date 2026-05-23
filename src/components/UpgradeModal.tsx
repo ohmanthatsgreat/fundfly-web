@@ -39,8 +39,11 @@ export default function UpgradeModal({
 }) {
   const [loadingPlan, setLoadingPlan] = useState<Plan | null>(null);
 
+  const [error, setError] = useState<string | null>(null);
+
   async function handleUpgrade(plan: Plan) {
     setLoadingPlan(plan);
+    setError(null);
     try {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
@@ -52,7 +55,10 @@ export default function UpgradeModal({
         window.location.href = data.url;
         return;
       }
-    } catch {}
+      setError(data.error || "Failed to start checkout");
+    } catch {
+      setError("Network error. Please try again.");
+    }
     setLoadingPlan(null);
   }
 
@@ -150,8 +156,11 @@ export default function UpgradeModal({
           })}
         </div>
 
-        {/* Footer */}
+        {/* Error / Footer */}
         <div className="px-6 pb-5 text-center">
+          {error && (
+            <p className="text-xs text-danger mb-2">{error}</p>
+          )}
           <p className="text-[11px] text-muted">
             Cancel anytime. Manage billing from Settings.
           </p>

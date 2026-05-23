@@ -18,9 +18,12 @@ import {
   Shield,
   ChevronLeft,
   ChevronRight,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { useState } from "react";
+import { useTheme } from "./ThemeProvider";
 
 const ADMIN_USER_IDS = (process.env.NEXT_PUBLIC_ADMIN_USER_IDS || "")
   .split(",")
@@ -46,6 +49,7 @@ export default function AppSidebar({ onNavigate }: { onNavigate?: () => void }) 
   const pathname = usePathname();
   const { user } = useUser();
   const [collapsed, setCollapsed] = useState(false);
+  const { resolved, setTheme } = useTheme();
 
   const isAdmin = user?.id ? ADMIN_USER_IDS.includes(user.id) : false;
 
@@ -125,12 +129,28 @@ export default function AppSidebar({ onNavigate }: { onNavigate?: () => void }) 
         })}
       </nav>
 
-      {/* User */}
-      <div className="border-t border-border p-3 flex items-center gap-3">
-        <UserButton />
-        {!collapsed && (
-          <span className="text-xs text-muted truncate">Account</span>
-        )}
+      {/* User + Theme */}
+      <div className="border-t border-border p-3 space-y-2">
+        <div className="flex items-center gap-3">
+          <UserButton />
+          {!collapsed && (
+            <span className="text-xs text-muted truncate">Account</span>
+          )}
+        </div>
+        <button
+          onClick={() => setTheme(resolved === "dark" ? "light" : "dark")}
+          className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-muted hover:text-foreground hover:bg-card transition-colors"
+          title={collapsed ? (resolved === "dark" ? "Light mode" : "Dark mode") : undefined}
+        >
+          {resolved === "dark" ? (
+            <Sun className="w-4.5 h-4.5 shrink-0" />
+          ) : (
+            <Moon className="w-4.5 h-4.5 shrink-0" />
+          )}
+          {!collapsed && (
+            <span>{resolved === "dark" ? "Light Mode" : "Dark Mode"}</span>
+          )}
+        </button>
       </div>
     </aside>
   );

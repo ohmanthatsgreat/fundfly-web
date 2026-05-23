@@ -3,6 +3,16 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { stripe } from "@/lib/stripe";
 import { getOrCreateCustomer } from "@/lib/auth";
 
+function getBaseUrl(request: NextRequest): string {
+  // Prefer explicit env var, fall back to request headers
+  if (process.env.NEXT_PUBLIC_URL && process.env.NEXT_PUBLIC_URL !== "http://localhost:3000") {
+    return process.env.NEXT_PUBLIC_URL;
+  }
+  const host = request.headers.get("host") || "fundfly.app";
+  const proto = request.headers.get("x-forwarded-proto") || "https";
+  return `${proto}://${host}`;
+}
+
 export async function POST(request: NextRequest) {
   const { userId } = await auth();
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -17,8 +27,16 @@ export async function POST(request: NextRequest) {
 
   const priceId =
     plan === "matching"
-      ? process.env.STRIPE_MATCHING_PRICE_ID!
-      : process.env.STRIPE_SUBMISSIONS_PRICE_ID!;
+      ? process.env.STRIPE_MATCHING_PRICE_ID
+      : process.env.STRIPE_SUBMISSIONS_PRICE_ID;
+
+  if (!priceId) {
+    console.error(`[checkout] Missing STRIPE_${plan.toUpperCase()}_PRICE_ID env var`);
+    return Response.json(
+      { error: "Checkout not configured. Please set Stripe price IDs." },
+      { status: 500 }
+    );
+  }
 
   const customer = await getOrCreateCustomer(
     userId,
@@ -36,7 +54,7 @@ export async function POST(request: NextRequest) {
     });
     stripeCustomerId = stripeCustomer.id;
 
-    // Update our DB (import db and customers table)
+    // Update our DB
     const { db, customers: customersTable } = await import("@/lib/db");
     const { eq } = await import("drizzle-orm");
     await db
@@ -45,12 +63,14 @@ export async function POST(request: NextRequest) {
       .where(eq(customersTable.id, customer.id));
   }
 
+  const baseUrl = getBaseUrl(request);
+
   const session = await stripe.checkout.sessions.create({
     customer: stripeCustomerId,
     mode: "subscription",
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${process.env.NEXT_PUBLIC_URL}/app/settings?success=true`,
-    cancel_url: `${process.env.NEXT_PUBLIC_URL}/pricing`,
+    success_url: `${baseUrl}/app/settings?success=true`,
+    cancel_url: `${baseUrl}/pricing`,
     metadata: { plan, customerId: String(customer.id) },
   });
 
