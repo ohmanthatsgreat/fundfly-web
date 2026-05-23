@@ -14,9 +14,66 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FundFly | AI Grant Finder for Businesses & Individuals",
+  title: {
+    default: "FundFly | AI Grant Finder for Businesses & Individuals",
+    template: "%s | FundFly",
+  },
   description:
     "Find and apply to grants, SBIR funding, and foundation programs. AI-powered matching scores every opportunity against your profile.",
+  metadataBase: new URL("https://fundfly.app"),
+  alternates: {
+    canonical: "/",
+  },
+  keywords: [
+    "grants",
+    "grant finder",
+    "SBIR",
+    "STTR",
+    "small business grants",
+    "government grants",
+    "AI grant matching",
+    "grant application",
+    "federal funding",
+    "foundation grants",
+    "personal grants",
+  ],
+  authors: [{ name: "FundFly" }],
+  creator: "FundFly",
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://fundfly.app",
+    siteName: "FundFly",
+    title: "FundFly | AI Grant Finder for Businesses & Individuals",
+    description:
+      "Find and apply to grants, SBIR funding, and foundation programs. AI-powered matching scores every opportunity against your profile.",
+    images: [
+      {
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "FundFly — AI-powered grant discovery and application platform",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "FundFly | AI Grant Finder for Businesses & Individuals",
+    description:
+      "Find and apply to grants, SBIR funding, and foundation programs. AI-powered matching scores every opportunity against your profile.",
+    images: ["/opengraph-image"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
 };
 
 export default function RootLayout({

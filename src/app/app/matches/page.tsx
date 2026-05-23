@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Brain, Loader2, Sparkles } from "lucide-react";
 import OpportunityCard, { type Opportunity } from "@/components/OpportunityCard";
+import UpgradeModal from "@/components/UpgradeModal";
 
 interface Match {
   id: number;
@@ -18,6 +19,7 @@ export default function MatchesPage() {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [mode, setMode] = useState<"org" | "personal">("org");
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
   const fetchMatches = useCallback(async () => {
     setLoading(true);
@@ -43,7 +45,7 @@ export default function MatchesPage() {
       });
       const data = await res.json();
       if (data.error === "subscription_required") {
-        alert("AI Matching requires an active subscription. Visit Pricing to subscribe.");
+        setShowUpgrade(true);
         setRunning(false);
         return;
       }
@@ -129,6 +131,12 @@ export default function MatchesPage() {
             </div>
           ))}
         </div>
+      )}
+      {showUpgrade && (
+        <UpgradeModal
+          feature="matching"
+          onClose={() => setShowUpgrade(false)}
+        />
       )}
     </div>
   );

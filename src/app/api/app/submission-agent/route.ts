@@ -5,7 +5,7 @@ import {
   submissionPlans,
   applicationSections,
 } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, checkSubscription } from "@/lib/auth";
 import { eq, and } from "drizzle-orm";
 
 const WORKER_URL = process.env.WORKER_URL || "http://localhost:3001";
@@ -26,6 +26,15 @@ export async function POST(request: NextRequest) {
   const userId = await requireAuth();
   const body = await request.json();
   const { action, plan_id } = body;
+
+  // Check subscription — submission agent requires "submissions" plan
+  const sub = await checkSubscription(userId, "submissions");
+  if (!sub.allowed) {
+    return Response.json(
+      { error: "subscription_required", feature: "submissions" },
+      { status: 403 }
+    );
+  }
 
   if (!plan_id) {
     return Response.json({ error: "plan_id required" }, { status: 400 });

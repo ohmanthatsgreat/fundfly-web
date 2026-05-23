@@ -16,6 +16,7 @@ import {
   Globe,
 } from "lucide-react";
 import SubmissionPlanView from "./SubmissionPlanView";
+import UpgradeModal from "./UpgradeModal";
 
 type Section = {
   id: number;
@@ -72,6 +73,7 @@ export default function ApplicationWorkspace({
   const [editContent, setEditContent] = useState("");
   const [saving, setSaving] = useState(false);
   const [showSubmission, setShowSubmission] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
   const fetchApp = useCallback(async () => {
     try {
@@ -131,7 +133,11 @@ export default function ApplicationWorkspace({
         }),
       });
       const data = await res.json();
-      if (data.error) {
+      if (data.error === "subscription_required") {
+        setShowUpgrade(true);
+        setGenerating(false);
+        return;
+      } else if (data.error) {
         alert(data.error);
       } else if (data.sections) {
         setApp((prev) =>
@@ -147,7 +153,7 @@ export default function ApplicationWorkspace({
         );
       }
     } catch {
-      alert("Failed to generate sections. Check your API key configuration.");
+      alert("Failed to generate sections. Please try again.");
     }
     setGenerating(false);
   };
@@ -577,6 +583,12 @@ export default function ApplicationWorkspace({
             );
           })}
         </div>
+      )}
+      {showUpgrade && (
+        <UpgradeModal
+          feature="submissions"
+          onClose={() => setShowUpgrade(false)}
+        />
       )}
     </div>
   );

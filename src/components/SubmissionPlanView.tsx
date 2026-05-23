@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   FileSearch,
 } from "lucide-react";
+import UpgradeModal from "./UpgradeModal";
 
 type SubmissionStep = {
   step_number: number;
@@ -119,6 +120,7 @@ export default function SubmissionPlanView({
     []
   );
   const logsEndRef = useRef<HTMLDivElement>(null);
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
   const fetchPlan = useCallback(async () => {
     try {
@@ -154,7 +156,11 @@ export default function SubmissionPlanView({
         body: JSON.stringify({ application_id: applicationId }),
       });
       const data = await res.json();
-      if (data.error) {
+      if (data.error === "subscription_required") {
+        setShowUpgrade(true);
+        setGenerating(false);
+        return;
+      } else if (data.error) {
         alert(data.error);
       } else {
         setPlanData(data.plan);
@@ -177,11 +183,17 @@ export default function SubmissionPlanView({
     setDiscoveries([]);
 
     // Start the agent via our proxy
-    await fetch("/api/app/submission-agent", {
+    const startRes = await fetch("/api/app/submission-agent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "start", plan_id: planId }),
     });
+    const startData = await startRes.json();
+    if (startData.error === "subscription_required") {
+      setShowUpgrade(true);
+      setPlanStatus("pending");
+      return;
+    }
 
     // Connect to SSE stream via our proxy
     const eventSource = new EventSource(
@@ -391,6 +403,12 @@ export default function SubmissionPlanView({
             Research Submission Plan
           </button>
         </div>
+        {showUpgrade && (
+          <UpgradeModal
+            feature="submissions"
+            onClose={() => setShowUpgrade(false)}
+          />
+        )}
       </div>
     );
   }
@@ -831,6 +849,12 @@ export default function SubmissionPlanView({
             ))}
           </div>
         </div>
+      )}
+      {showUpgrade && (
+        <UpgradeModal
+          feature="submissions"
+          onClose={() => setShowUpgrade(false)}
+        />
       )}
     </div>
   );

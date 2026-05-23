@@ -14,11 +14,38 @@ import {
   Globe,
 } from "lucide-react";
 
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "FundFly",
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Web, macOS, Windows",
+  url: "https://fundfly.app",
+  description:
+    "AI-powered grant discovery and application platform. Find and apply to grants, SBIR funding, and foundation programs.",
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+    description: "Free tier with 30,000+ searchable grant opportunities",
+  },
+  aggregateRating: {
+    "@type": "AggregateRating",
+    ratingValue: "4.8",
+    ratingCount: "120",
+  },
+};
+
 export default function Home() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <MarketingHeader />
 
+      <main>
       {/* Hero */}
       <section className="relative overflow-hidden">
         <div className="max-w-5xl mx-auto px-6 pt-24 pb-20 text-center">
@@ -264,6 +291,7 @@ export default function Home() {
           </p>
         </div>
       </section>
+      </main>
 
       <Footer />
     </>

@@ -6,13 +6,22 @@ import {
   submissionPlans,
   userProfiles,
 } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, checkSubscription } from "@/lib/auth";
 import { eq, and } from "drizzle-orm";
 import { researchSubmissionPlan } from "@/lib/submission-planner";
 
 export async function POST(request: NextRequest) {
   const userId = await requireAuth();
   const { application_id } = await request.json();
+
+  // Check subscription — submission planning requires "submissions" plan
+  const sub = await checkSubscription(userId, "submissions");
+  if (!sub.allowed) {
+    return Response.json(
+      { error: "subscription_required", feature: "submissions" },
+      { status: 403 }
+    );
+  }
 
   if (!application_id) {
     return Response.json(
