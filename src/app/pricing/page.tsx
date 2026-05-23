@@ -327,7 +327,7 @@ export default function PricingPage() {
                           <span className="ml-1">
                             — was{" "}
                             <span className="line-through">
-                              ${alaCarteTotal + savings}
+                              ${alaCarteTotal}
                             </span>
                           </span>
                         )}
