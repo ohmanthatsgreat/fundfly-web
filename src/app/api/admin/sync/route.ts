@@ -153,12 +153,43 @@ async function syncSbirGov(): Promise<number> {
 
 // ─── Handler ────────────────────────────────────────────────────────
 
+// GET — return opportunity counts by source (no sync triggered)
+export async function GET() {
+  try {
+    await requireAdmin();
+  } catch {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(opportunities);
+
+  const bySource = await db
+    .select({
+      source: opportunities.source,
+      count: sql<number>`count(*)`,
+    })
+    .from(opportunities)
+    .groupBy(opportunities.source);
+
+  return Response.json({
+    totalOpportunities: Number(count),
+    bySource: bySource.map((r) => ({
+      source: r.source,
+      count: Number(r.count),
+    })),
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     await requireAdmin();
   } catch {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
+
+  const startTime = Date.now();
 
   const results = {
     grantsGov: 0,
@@ -183,9 +214,12 @@ export async function POST(request: NextRequest) {
     .select({ count: sql<number>`count(*)` })
     .from(opportunities);
 
+  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+
   return Response.json({
     success: true,
     synced: results,
     totalOpportunities: count,
+    durationSeconds: duration,
   });
 }

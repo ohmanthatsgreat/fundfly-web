@@ -15,12 +15,18 @@ import {
   Building2,
   UserCircle,
   Settings,
+  Shield,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { useUser } from "@clerk/nextjs";
 import { useState } from "react";
 
-const navItems = [
+const ADMIN_USER_IDS = (process.env.NEXT_PUBLIC_ADMIN_USER_IDS || "")
+  .split(",")
+  .filter(Boolean);
+
+const baseNavItems = [
   { href: "/app", label: "All Opportunities", icon: LayoutGrid, tour: "nav-all" },
   { href: "/app/biz-grants", label: "Biz Grants", icon: Briefcase, tour: "nav-biz-grants" },
   { href: "/app/sbir", label: "SBIR / STTR", icon: Beaker, tour: "nav-sbir" },
@@ -38,7 +44,18 @@ const navItems = [
 
 export default function AppSidebar() {
   const pathname = usePathname();
+  const { user } = useUser();
   const [collapsed, setCollapsed] = useState(false);
+
+  const isAdmin = user?.id ? ADMIN_USER_IDS.includes(user.id) : false;
+
+  const navItems = isAdmin
+    ? [
+        ...baseNavItems,
+        { type: "divider" as const },
+        { href: "/app/admin", label: "Admin", icon: Shield, tour: "nav-admin" },
+      ]
+    : baseNavItems;
 
   return (
     <aside
