@@ -1,29 +1,137 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { UserCircle, Loader2, Save } from "lucide-react";
+import { UserCircle, Loader2, Save, CheckCircle, Sparkles } from "lucide-react";
 
-const fields = [
-  { key: "fullName", label: "Full Name", type: "text" },
-  { key: "email", label: "Email", type: "email" },
-  { key: "phone", label: "Phone", type: "tel" },
-  { key: "address", label: "Address", type: "text" },
-  { key: "city", label: "City", type: "text" },
-  { key: "state", label: "State", type: "text" },
-  { key: "zip", label: "ZIP Code", type: "text" },
-  { key: "citizenship", label: "Citizenship", type: "text" },
-  { key: "veteranStatus", label: "Veteran Status", type: "select", options: ["Not a veteran", "Veteran", "Active duty", "Reserve/Guard", "Spouse of veteran"] },
-  { key: "gender", label: "Gender", type: "select", options: ["Male", "Female", "Non-binary", "Prefer not to say"] },
-  { key: "raceEthnicity", label: "Race / Ethnicity", type: "text" },
-  { key: "householdSize", label: "Household Size", type: "text" },
-  { key: "annualIncome", label: "Annual Household Income", type: "text" },
-  { key: "employmentStatus", label: "Employment Status", type: "select", options: ["Employed", "Self-employed", "Unemployed", "Student", "Retired", "Other"] },
-  { key: "educationLevel", label: "Education Level", type: "select", options: ["High school", "Some college", "Associate", "Bachelor's", "Master's", "Doctorate", "Professional"] },
-  { key: "fieldOfStudy", label: "Field of Study", type: "text" },
-  { key: "currentSchool", label: "Current School", type: "text" },
-  { key: "skills", label: "Skills / Expertise", type: "textarea" },
-  { key: "interests", label: "Interests", type: "textarea" },
-  { key: "housingStatus", label: "Housing Status", type: "select", options: ["Own", "Rent", "Unhoused", "Other"] },
+const FIELD_GROUPS = [
+  {
+    title: "Basic Information",
+    fields: [
+      { key: "fullName", label: "Full Name", type: "text" },
+      { key: "email", label: "Email", type: "email" },
+      { key: "phone", label: "Phone", type: "tel" },
+      { key: "dateOfBirth", label: "Date of Birth", type: "date" },
+      {
+        key: "citizenship",
+        label: "Citizenship Status",
+        type: "select",
+        options: ["US Citizen", "Permanent Resident", "DACA", "Visa Holder", "Other"],
+      },
+    ],
+  },
+  {
+    title: "Address",
+    fields: [
+      { key: "address", label: "Street Address", type: "text" },
+      { key: "city", label: "City", type: "text" },
+      { key: "state", label: "State", type: "text" },
+      { key: "zip", label: "ZIP Code", type: "text" },
+    ],
+  },
+  {
+    title: "Demographics",
+    fields: [
+      {
+        key: "veteranStatus",
+        label: "Veteran Status",
+        type: "select",
+        options: ["Not a Veteran", "Veteran", "Active Duty", "Reserve/National Guard", "Spouse of Veteran"],
+      },
+      {
+        key: "disabilityStatus",
+        label: "Disability Status",
+        type: "select",
+        options: ["No Disability", "Has Disability", "Prefer Not to Say"],
+      },
+      {
+        key: "gender",
+        label: "Gender",
+        type: "select",
+        options: ["Male", "Female", "Non-Binary", "Prefer Not to Say"],
+      },
+      {
+        key: "raceEthnicity",
+        label: "Race/Ethnicity",
+        type: "select",
+        options: [
+          "White",
+          "Black/African American",
+          "Hispanic/Latino",
+          "Asian",
+          "Native American/Alaska Native",
+          "Native Hawaiian/Pacific Islander",
+          "Two or More Races",
+          "Prefer Not to Say",
+        ],
+      },
+    ],
+  },
+  {
+    title: "Financial & Household",
+    fields: [
+      {
+        key: "householdSize",
+        label: "Household Size",
+        type: "select",
+        options: ["1", "2", "3", "4", "5", "6", "7", "8+"],
+      },
+      {
+        key: "annualIncome",
+        label: "Annual Household Income",
+        type: "select",
+        options: [
+          "Under $25,000",
+          "$25,000 - $50,000",
+          "$50,000 - $75,000",
+          "$75,000 - $100,000",
+          "$100,000 - $150,000",
+          "Over $150,000",
+          "Prefer Not to Say",
+        ],
+      },
+      {
+        key: "employmentStatus",
+        label: "Employment Status",
+        type: "select",
+        options: ["Employed Full-Time", "Employed Part-Time", "Self-Employed", "Unemployed", "Student", "Retired", "Disabled"],
+      },
+      {
+        key: "housingStatus",
+        label: "Housing Status",
+        type: "select",
+        options: ["Homeowner", "Renter", "Living with Family", "Experiencing Homelessness", "Other"],
+      },
+    ],
+  },
+  {
+    title: "Education",
+    fields: [
+      {
+        key: "educationLevel",
+        label: "Highest Education Level",
+        type: "select",
+        options: [
+          "Less than High School",
+          "High School/GED",
+          "Some College",
+          "Associate Degree",
+          "Bachelor's Degree",
+          "Master's Degree",
+          "Doctorate/Professional",
+          "Trade/Vocational",
+        ],
+      },
+      { key: "fieldOfStudy", label: "Field of Study", type: "text" },
+      { key: "currentSchool", label: "Current School (if applicable)", type: "text" },
+    ],
+  },
+  {
+    title: "Skills & Interests",
+    fields: [
+      { key: "skills", label: "Skills & Qualifications", type: "textarea" },
+      { key: "interests", label: "Areas of Interest for Funding", type: "textarea" },
+    ],
+  },
 ];
 
 export default function PersonalProfilePage() {
@@ -31,20 +139,40 @@ export default function PersonalProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [enhancing, setEnhancing] = useState<string | null>(null);
 
   useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch("/api/app/personal-profile");
-        const data = await res.json();
+    fetch("/api/app/personal-profile")
+      .then((r) => r.json())
+      .then((data) => {
         if (data.profile) setProfile(data.profile);
-      } catch {}
-      setLoading(false);
-    }
-    load();
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, []);
 
-  async function handleSave() {
+  const handleChange = (key: string, value: string) => {
+    setProfile((prev) => ({ ...prev, [key]: value }));
+    setSaved(false);
+  };
+
+  const handleEnhance = async (key: string) => {
+    const value = profile[key];
+    if (!value || value.trim().length < 10) return;
+    setEnhancing(key);
+    try {
+      const res = await fetch("/api/app/ai-enhance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field: key, value }),
+      });
+      const data = await res.json();
+      if (data.enhanced) handleChange(key, data.enhanced);
+    } catch {}
+    setEnhancing(null);
+  };
+
+  const handleSave = async () => {
     setSaving(true);
     try {
       await fetch("/api/app/personal-profile", {
@@ -53,10 +181,10 @@ export default function PersonalProfilePage() {
         body: JSON.stringify(profile),
       });
       setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      setTimeout(() => setSaved(false), 3000);
     } catch {}
     setSaving(false);
-  }
+  };
 
   if (loading) {
     return (
@@ -66,66 +194,134 @@ export default function PersonalProfilePage() {
     );
   }
 
+  const inputClass =
+    "w-full px-3 py-2.5 bg-surface border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 transition-all placeholder:text-muted/40";
+
   return (
-    <div className="p-6 max-w-3xl">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold">Personal Profile</h1>
-          <p className="text-sm text-muted mt-1">
-            Used for AI matching against personal grants
-          </p>
+    <div className="p-6 max-w-3xl space-y-8">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center">
+            <UserCircle size={20} className="text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold">Personal Profile</h1>
+            <p className="text-xs text-muted">
+              Used to match you with personal grant opportunities
+            </p>
+          </div>
         </div>
         <button
           onClick={handleSave}
           disabled={saving}
-          className="inline-flex items-center gap-2 bg-accent text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-50"
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${
+            saved
+              ? "bg-emerald-500 text-white"
+              : "bg-accent text-white hover:bg-accent/90"
+          } disabled:opacity-50`}
         >
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {saved ? "Saved!" : "Save Profile"}
+          {saved ? (
+            <>
+              <CheckCircle size={15} />
+              Saved!
+            </>
+          ) : saving ? (
+            <>
+              <Loader2 size={15} className="animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save size={15} />
+              Save Profile
+            </>
+          )}
         </button>
       </div>
 
-      <div className="space-y-5">
-        {fields.map((field) => (
-          <div key={field.key}>
-            <label className="block text-sm font-medium mb-1.5">
-              {field.label}
-            </label>
-            {field.type === "textarea" ? (
-              <textarea
-                value={profile[field.key] || ""}
-                onChange={(e) =>
-                  setProfile({ ...profile, [field.key]: e.target.value })
-                }
-                rows={3}
-                className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent resize-none"
-              />
-            ) : field.type === "select" ? (
-              <select
-                value={profile[field.key] || ""}
-                onChange={(e) =>
-                  setProfile({ ...profile, [field.key]: e.target.value })
-                }
-                className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 appearance-none"
+      {/* Field Groups */}
+      {FIELD_GROUPS.map((group) => (
+        <section
+          key={group.title}
+          className="bg-card border border-border rounded-xl p-5 space-y-4"
+        >
+          <h3 className="text-[11px] font-semibold text-muted uppercase tracking-wider">
+            {group.title}
+          </h3>
+          <div className="grid grid-cols-2 gap-4">
+            {group.fields.map((field) => (
+              <div
+                key={field.key}
+                className={field.type === "textarea" ? "col-span-2" : ""}
               >
-                <option value="">Select...</option>
-                {field.options?.map((opt) => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                type={field.type}
-                value={profile[field.key] || ""}
-                onChange={(e) =>
-                  setProfile({ ...profile, [field.key]: e.target.value })
-                }
-                className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
-              />
-            )}
+                {field.type === "textarea" ? (
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-[11px] font-medium text-muted uppercase tracking-wider">
+                        {field.label}
+                      </label>
+                      {profile[field.key]?.trim().length >= 10 && (
+                        <button
+                          onClick={() => handleEnhance(field.key)}
+                          disabled={enhancing === field.key}
+                          className="flex items-center gap-1 text-xs font-medium text-accent hover:text-accent/80 transition-colors disabled:opacity-50"
+                        >
+                          {enhancing === field.key ? (
+                            <>
+                              <Loader2 size={11} className="animate-spin" /> Enhancing...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles size={11} /> Enhance
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                    <textarea
+                      value={profile[field.key] || ""}
+                      onChange={(e) => handleChange(field.key, e.target.value)}
+                      rows={3}
+                      className={inputClass + " resize-none"}
+                    />
+                  </div>
+                ) : field.type === "select" ? (
+                  <>
+                    <label className="text-[11px] font-medium text-muted uppercase tracking-wider block mb-1.5">
+                      {field.label}
+                    </label>
+                    <select
+                      value={profile[field.key] || ""}
+                      onChange={(e) => handleChange(field.key, e.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="">Select...</option>
+                      {field.options!.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                ) : (
+                  <>
+                    <label className="text-[11px] font-medium text-muted uppercase tracking-wider block mb-1.5">
+                      {field.label}
+                    </label>
+                    <input
+                      type={field.type}
+                      value={profile[field.key] || ""}
+                      onChange={(e) => handleChange(field.key, e.target.value)}
+                      className={inputClass}
+                    />
+                  </>
+                )}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </section>
+      ))}
     </div>
   );
 }

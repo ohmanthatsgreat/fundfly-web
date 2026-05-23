@@ -449,8 +449,9 @@ export default function AdminPage() {
         </div>
 
         <p className="text-sm text-muted mb-4">
-          Pull the latest opportunities from Grants.gov and SBIR.gov into the
-          database. This upserts records (inserts new, updates existing).
+          Pull the latest opportunities from Grants.gov, SBIR.gov, and Zeffy
+          into the database. Syncs 5 Zeffy categories per run (rotates through
+          all 100). Upserts records and enriches Zeffy grants with contact info.
         </p>
 
         {/* Source breakdown */}
