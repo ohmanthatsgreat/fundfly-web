@@ -42,7 +42,7 @@ const baseNavItems = [
   { href: "/app/settings", label: "Settings", icon: Settings, tour: "nav-settings" },
 ];
 
-export default function AppSidebar() {
+export default function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { user } = useUser();
   const [collapsed, setCollapsed] = useState(false);
@@ -110,6 +110,7 @@ export default function AppSidebar() {
               key={navItem.href}
               href={navItem.href}
               data-tour={navItem.tour}
+              onClick={onNavigate}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                 isActive
                   ? "bg-accent/10 text-accent font-medium"

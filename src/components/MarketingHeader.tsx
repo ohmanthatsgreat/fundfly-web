@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { useUser, SignInButton } from "@clerk/nextjs";
+import { useState } from "react";
+import { Menu, X } from "lucide-react";
 
 export default function MarketingHeader() {
   const { isSignedIn } = useUser();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
@@ -39,7 +42,7 @@ export default function MarketingHeader() {
           ) : (
             <>
               <SignInButton mode="modal">
-                <button className="text-sm text-muted hover:text-foreground transition-colors">
+                <button className="hidden sm:inline text-sm text-muted hover:text-foreground transition-colors">
                   Sign In
                 </button>
               </SignInButton>
@@ -51,8 +54,51 @@ export default function MarketingHeader() {
               </Link>
             </>
           )}
+          <button
+            onClick={() => setMobileOpen(!mobileOpen)}
+            className="md:hidden p-2 text-muted hover:text-foreground transition-colors"
+            aria-label="Toggle menu"
+          >
+            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
         </div>
       </div>
+
+      {/* Mobile menu */}
+      {mobileOpen && (
+        <div className="md:hidden border-t border-border bg-background/95 backdrop-blur-md">
+          <nav className="flex flex-col px-6 py-4 space-y-3 text-sm">
+            <Link
+              href="/#how-it-works"
+              onClick={() => setMobileOpen(false)}
+              className="text-muted hover:text-foreground transition-colors py-1"
+            >
+              How it Works
+            </Link>
+            <Link
+              href="/pricing"
+              onClick={() => setMobileOpen(false)}
+              className="text-muted hover:text-foreground transition-colors py-1"
+            >
+              Pricing
+            </Link>
+            <Link
+              href="/download"
+              onClick={() => setMobileOpen(false)}
+              className="text-muted hover:text-foreground transition-colors py-1"
+            >
+              Download
+            </Link>
+            {!isSignedIn && (
+              <SignInButton mode="modal">
+                <button className="text-left text-muted hover:text-foreground transition-colors py-1">
+                  Sign In
+                </button>
+              </SignInButton>
+            )}
+          </nav>
+        </div>
+      )}
     </header>
   );
 }
