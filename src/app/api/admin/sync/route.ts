@@ -40,7 +40,7 @@ async function syncGrantsGov(): Promise<number> {
     const val = {
       id: `grants_gov_${item.id}`,
       source: "grants.gov",
-      sourceUrl: `https://www.grants.gov/search-results-detail/${item.number || item.id}`,
+      sourceUrl: `https://simpler.grants.gov/opportunity/${item.id}`,
       title: String(item.title || ""),
       description: String(item.synopsis || item.description || ""),
       agency: String(item.agency || item.agencyCode || ""),
@@ -54,7 +54,7 @@ async function syncGrantsGov(): Promise<number> {
         ? "forecasted"
         : "open",
       audience: "business",
-      grantUrl: `https://www.grants.gov/search-results-detail/${item.number || item.id}`,
+      grantUrl: `https://simpler.grants.gov/opportunity/${item.id}`,
       rawJson: JSON.stringify(item),
     };
 
@@ -115,7 +115,7 @@ async function syncSbirGov(): Promise<number> {
     const val = {
       id: `sbir_grants_gov_${item.id}`,
       source: "sbir.gov",
-      sourceUrl: `https://www.grants.gov/search-results-detail/${item.number || item.id}`,
+      sourceUrl: `https://simpler.grants.gov/opportunity/${item.id}`,
       title: String(item.title || ""),
       description: String(item.synopsis || item.description || ""),
       agency: String(item.agency || item.agencyCode || ""),
@@ -124,7 +124,7 @@ async function syncSbirGov(): Promise<number> {
       postedDate: item.openDate ? String(item.openDate) : null,
       status: "open",
       audience: "business",
-      grantUrl: `https://www.grants.gov/search-results-detail/${item.number || item.id}`,
+      grantUrl: `https://simpler.grants.gov/opportunity/${item.id}`,
       rawJson: JSON.stringify(item),
     };
 

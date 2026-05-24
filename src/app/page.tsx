@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { auth } from "@clerk/nextjs/server";
 import MarketingHeader from "@/components/MarketingHeader";
 import Footer from "@/components/Footer";
 import {
@@ -31,7 +33,10 @@ const jsonLd = {
   },
 };
 
-export default function Home() {
+export default async function Home() {
+  const { userId } = await auth();
+  if (userId) redirect("/app");
+
   return (
     <>
       <script

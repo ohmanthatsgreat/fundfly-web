@@ -54,6 +54,20 @@ function daysUntil(d: string | null) {
   return Math.ceil((new Date(d).getTime() - Date.now()) / 86400000);
 }
 
+/** Construct the canonical public URL for an opportunity. */
+function getOpportunityUrl(opp: {
+  id: string;
+  source: string | null;
+  sourceUrl: string | null;
+  grantUrl?: string | null;
+}): string | null {
+  if (opp.source === "grants.gov") {
+    const numericId = opp.id.replace(/^grants_gov_/, "");
+    return `https://simpler.grants.gov/opportunity/${numericId}`;
+  }
+  return opp.grantUrl || opp.sourceUrl || null;
+}
+
 const TYPE_COLORS: Record<string, string> = {
   grant:
     "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-500/15 dark:text-blue-400 dark:border-blue-500/20",
@@ -130,6 +144,8 @@ export default function OpportunityDetail({
   onSave,
   onUnsave,
   onStartApplication,
+  onNextStep,
+  onSelectSimilar,
 }: {
   opportunity: Opportunity;
   isSaved: boolean;
@@ -137,6 +153,8 @@ export default function OpportunityDetail({
   onSave: (id: string) => void;
   onUnsave: (id: string) => void;
   onStartApplication?: (id: string) => void;
+  onNextStep?: (opp: Opportunity) => void;
+  onSelectSimilar?: (opp: Opportunity) => void;
 }) {
   const [opp, setOpp] = useState(initialOpp);
   const [enriching, setEnriching] = useState(false);
@@ -462,9 +480,32 @@ export default function OpportunityDetail({
             <Section title="Similar Opportunities" icon={Sparkles}>
               <div className="space-y-2">
                 {similar.map((s) => (
-                  <div
+                  <button
                     key={s.id}
-                    className="bg-card border border-border rounded-lg p-3 hover:border-accent/20 transition-colors"
+                    onClick={() => {
+                      if (!onSelectSimilar) return;
+                      const inferredSource = s.id.startsWith("grants_gov_")
+                        ? "grants.gov"
+                        : s.id.startsWith("sam_")
+                          ? "sam.gov"
+                          : "";
+                      onSelectSimilar({
+                        id: s.id,
+                        title: s.title,
+                        agency: s.agency,
+                        type: s.type,
+                        status: null,
+                        fundingMin: null,
+                        fundingMax: s.fundingMax,
+                        deadline: s.deadline,
+                        source: inferredSource,
+                        description: null,
+                        sourceUrl: s.sourceUrl,
+                        grantUrl: null,
+                        audience: null,
+                      });
+                    }}
+                    className="w-full text-left bg-card border border-border rounded-lg p-3 hover:border-accent/40 hover:bg-surface/50 transition-colors"
                   >
                     <p className="text-sm font-medium line-clamp-1">{s.title}</p>
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted">
@@ -476,17 +517,17 @@ export default function OpportunityDetail({
                         </span>
                       )}
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </Section>
           )}
 
           {/* Grant page link */}
-          {(opp.grantUrl || opp.sourceUrl) && (
+          {getOpportunityUrl(opp) && (
             <Section title="Grant Page" icon={Globe}>
               <a
-                href={opp.grantUrl || opp.sourceUrl || "#"}
+                href={getOpportunityUrl(opp)!}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-accent hover:text-accent/80 underline underline-offset-2 flex items-center gap-1.5"
@@ -526,12 +567,22 @@ export default function OpportunityDetail({
             </button>
           )}
 
-          {(opp.grantUrl || opp.sourceUrl) && (
+          {onNextStep && (
+            <button
+              onClick={() => onNextStep(opp)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-all duration-150"
+            >
+              Start Submission
+              <ArrowRight size={13} />
+            </button>
+          )}
+
+          {getOpportunityUrl(opp) && (
             <a
-              href={opp.grantUrl || opp.sourceUrl || "#"}
+              href={getOpportunityUrl(opp)!}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2.5 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-all duration-150 ml-auto"
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-muted hover:text-foreground bg-surface hover:bg-card border border-border rounded-lg transition-all duration-150 ml-auto"
             >
               {isGrantsGov ? "View on Grants.gov" : "Apply Now"}
               <ExternalLink size={13} />

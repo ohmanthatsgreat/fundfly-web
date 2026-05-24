@@ -363,6 +363,8 @@ export default function OpportunityList({
           onSave={handleSave}
           onUnsave={handleUnsave}
           onStartApplication={handleStartApplication}
+          onNextStep={handleNextStep}
+          onSelectSimilar={(opp) => setSelected(opp)}
         />
       )}
 
