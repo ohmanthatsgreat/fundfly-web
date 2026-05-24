@@ -3,6 +3,21 @@ import { db, opportunities } from "@/lib/db";
 import { sql } from "drizzle-orm";
 import { syncZeffy, enrichZeffyGrants } from "@/lib/ingest-zeffy";
 
+/** Decode HTML entities (&amp; &rsquo; &#39; etc.) in ingested text */
+function decodeEntities(str: string): string {
+  const entities: Record<string, string> = {
+    "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"',
+    "&apos;": "'", "&rsquo;": "’", "&lsquo;": "‘",
+    "&rdquo;": "”", "&ldquo;": "“", "&ndash;": "–",
+    "&mdash;": "—", "&nbsp;": " ", "&hellip;": "…",
+    "&trade;": "™", "&reg;": "®", "&copy;": "©",
+  };
+  return str
+    .replace(/&[a-zA-Z]+;/g, (m) => entities[m] || m)
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+}
+
 // ─── Grants.gov sync (paginated) ────────────────────────────────────
 
 async function syncGrantsGov(): Promise<number> {
@@ -35,8 +50,8 @@ async function syncGrantsGov(): Promise<number> {
         id: `grants_gov_${item.id}`,
         source: "grants.gov",
         sourceUrl: `https://www.grants.gov/search-results-detail/${item.number || item.id}`,
-        title: String(item.title || ""),
-        description: String(item.synopsis || item.description || ""),
+        title: decodeEntities(String(item.title || "")),
+        description: decodeEntities(String(item.synopsis || item.description || "")),
         agency: String(item.agency || item.agencyCode || ""),
         subAgency: "",
         type: "grant",
@@ -180,8 +195,8 @@ async function syncSamGov(): Promise<number> {
           id: `sam_gov_${item.noticeId}`,
           source: "sam.gov",
           sourceUrl: `https://sam.gov/opp/${item.noticeId}/view`,
-          title: String(item.title || ""),
-          description: String(item.description || ""),
+          title: decodeEntities(String(item.title || "")),
+          description: decodeEntities(String(item.description || "")),
           agency: String(
             (item.department as Record<string, unknown>)?.name ||
             item.organizationType || ""
