@@ -1,39 +1,61 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, X, Loader2, Brain, ClipboardCheck, Bot } from "lucide-react";
+import { Sparkles, X, Loader2, Brain, ClipboardCheck, Bot, Check } from "lucide-react";
 
 type Feature = "matching" | "checklist" | "auto_submission";
 
-const FEATURE_DETAILS: Record<
-  Feature,
+const PLANS: {
+  key: Feature;
+  name: string;
+  price: number;
+  icon: React.ComponentType<{ className?: string }>;
+  includes: string;
+  bullets: string[];
+}[] = [
   {
-    name: string;
-    price: number;
-    description: string;
-    icon: React.ComponentType<{ className?: string }>;
-  }
-> = {
-  matching: {
+    key: "matching",
     name: "AI Matching",
     price: 29,
-    description: "AI-powered opportunity scoring against your profiles",
+    includes: "",
     icon: Brain,
+    bullets: [
+      "AI scores every grant against your profile",
+      "Personalized match reasoning",
+      "Business & personal matching",
+    ],
   },
-  checklist: {
+  {
+    key: "checklist",
     name: "Pre-Submission Checklist",
-    price: 99,
-    description:
-      "Step-by-step submission plans, eligibility checks, and AI application drafting",
+    price: 129,
+    includes: "Includes AI Matching",
     icon: ClipboardCheck,
+    bullets: [
+      "Step-by-step submission plans",
+      "Eligibility verification",
+      "AI-drafted application sections",
+    ],
   },
-  auto_submission: {
+  {
+    key: "auto_submission",
     name: "Auto-Submission",
     price: 399,
-    description:
-      "AI agent that navigates portals, fills forms, and submits applications",
+    includes: "Includes Matching + Checklist",
     icon: Bot,
+    bullets: [
+      "AI agent fills & submits forms",
+      "Portal navigation on autopilot",
+      "Status tracking & notifications",
+    ],
   },
+];
+
+/** Index of each plan in the tier hierarchy */
+const TIER_ORDER: Record<Feature, number> = {
+  matching: 0,
+  checklist: 1,
+  auto_submission: 2,
 };
 
 export default function UpgradeModal({
@@ -46,8 +68,13 @@ export default function UpgradeModal({
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const details = FEATURE_DETAILS[feature];
-  const Icon = details.icon;
+  const triggeredPlan = PLANS.find((p) => p.key === feature)!;
+  const TriggeredIcon = triggeredPlan.icon;
+
+  // Only show plans at or above the triggered feature's tier
+  const relevantPlans = PLANS.filter(
+    (p) => TIER_ORDER[p.key] >= TIER_ORDER[feature]
+  );
 
   async function handleUpgrade(plan: string) {
     setLoadingPlan(plan);
@@ -83,7 +110,7 @@ export default function UpgradeModal({
       />
 
       {/* Modal */}
-      <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+      <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="relative bg-gradient-to-br from-accent via-blue-600 to-indigo-600 px-6 py-8 text-white">
           <button
@@ -94,56 +121,104 @@ export default function UpgradeModal({
           </button>
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-              <Icon className="w-5 h-5" />
+              <TriggeredIcon className="w-5 h-5" />
             </div>
-            <h2 className="text-xl font-bold">Unlock {details.name}</h2>
+            <h2 className="text-xl font-bold">
+              Unlock {triggeredPlan.name}
+            </h2>
           </div>
-          <p className="text-sm text-white/80">{details.description}</p>
+          <p className="text-sm text-white/80">
+            {triggeredPlan.includes
+              ? `${triggeredPlan.includes} — choose the tier that fits.`
+              : "Choose the plan that fits your needs."}
+          </p>
         </div>
 
-        {/* Single feature upgrade */}
-        <div className="p-6 space-y-3">
-          <button
-            onClick={() => handleUpgrade(feature)}
-            disabled={loadingPlan !== null}
-            className="w-full flex items-center justify-between bg-accent text-white rounded-xl px-5 py-4 hover:bg-accent/90 transition-colors disabled:opacity-50"
-          >
-            <div className="text-left">
-              <p className="font-semibold text-sm">{details.name}</p>
-              <p className="text-xs text-white/70">
-                ${details.price}/mo
-              </p>
-            </div>
-            {loadingPlan === feature ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Sparkles className="w-4 h-4" />
-            )}
-          </button>
+        {/* Plans */}
+        <div className="p-5 space-y-3">
+          {relevantPlans.map((plan) => {
+            const Icon = plan.icon;
+            const isTriggered = plan.key === feature;
 
-          {/* Bundle option */}
-          <button
-            onClick={() => handleUpgrade("bundle")}
-            disabled={loadingPlan !== null}
-            className="w-full flex items-center justify-between border-2 border-border rounded-xl px-5 py-4 hover:border-accent/40 transition-colors disabled:opacity-50"
-          >
-            <div className="text-left">
-              <div className="flex items-center gap-2">
-                <p className="font-semibold text-sm">All Features Bundle</p>
-                <span className="text-[10px] font-medium text-green-600 bg-green-50 dark:bg-green-900/30 dark:text-green-400 px-1.5 py-0.5 rounded-full">
-                  Save $58/mo
-                </span>
-              </div>
-              <p className="text-xs text-muted">
-                $469/mo — Matching + Checklist + Auto-Submission
-              </p>
-            </div>
-            {loadingPlan === "bundle" ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Sparkles className="w-4 h-4 text-muted" />
-            )}
-          </button>
+            return (
+              <button
+                key={plan.key}
+                onClick={() => handleUpgrade(plan.key)}
+                disabled={loadingPlan !== null}
+                className={`w-full text-left rounded-xl px-5 py-4 transition-colors disabled:opacity-50 ${
+                  isTriggered
+                    ? "bg-accent text-white ring-2 ring-accent ring-offset-2 ring-offset-card"
+                    : "border border-border hover:border-accent/40"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Icon
+                        className={`w-4 h-4 shrink-0 ${
+                          isTriggered ? "text-white/80" : "text-accent"
+                        }`}
+                      />
+                      <span className="font-semibold text-sm">
+                        {plan.name}
+                      </span>
+                      {isTriggered && (
+                        <span className="text-[9px] font-semibold uppercase bg-white/20 px-1.5 py-0.5 rounded-full">
+                          Recommended
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-baseline gap-2 mb-2">
+                      <span
+                        className={`text-xs ${
+                          isTriggered ? "text-white/70" : "text-muted"
+                        }`}
+                      >
+                        ${plan.price}/mo
+                      </span>
+                      {plan.includes && (
+                        <span
+                          className={`text-[10px] ${
+                            isTriggered ? "text-white/50" : "text-muted/70"
+                          }`}
+                        >
+                          · {plan.includes}
+                        </span>
+                      )}
+                    </div>
+                    <ul className="space-y-1">
+                      {plan.bullets.map((b) => (
+                        <li
+                          key={b}
+                          className={`flex items-start gap-1.5 text-[11px] ${
+                            isTriggered ? "text-white/80" : "text-muted"
+                          }`}
+                        >
+                          <Check
+                            className={`w-3 h-3 shrink-0 mt-0.5 ${
+                              isTriggered ? "text-white/60" : "text-accent/60"
+                            }`}
+                          />
+                          {b}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="shrink-0 mt-1">
+                    {loadingPlan === plan.key ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Sparkles
+                        className={`w-4 h-4 ${
+                          isTriggered ? "text-white/60" : "text-muted"
+                        }`}
+                      />
+                    )}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         {/* Footer */}
@@ -152,7 +227,7 @@ export default function UpgradeModal({
           <p className="text-[11px] text-muted">
             Cancel anytime &middot;{" "}
             <a href="/pricing" className="text-accent hover:underline">
-              Compare all features
+              Compare all plans
             </a>
           </p>
         </div>

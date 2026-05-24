@@ -9,25 +9,26 @@ import {
   Brain,
   ClipboardCheck,
   Bot,
-  Sparkles,
   ArrowRight,
   Zap,
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 
-type FeatureId = "matching" | "checklist" | "auto_submission";
+type PlanId = "matching" | "checklist" | "auto_submission";
 
-interface FeatureOption {
-  id: FeatureId;
+interface PlanOption {
+  id: PlanId;
   name: string;
   price: number;
   icon: React.ComponentType<{ className?: string }>;
   tagline: string;
   description: string;
+  includes: string;
   features: string[];
+  popular?: boolean;
 }
 
-const FEATURES: FeatureOption[] = [
+const PLANS: PlanOption[] = [
   {
     id: "matching",
     name: "AI Matching",
@@ -36,6 +37,7 @@ const FEATURES: FeatureOption[] = [
     tagline: "Find your best opportunities",
     description:
       "AI scores every grant and funding opportunity against your org and personal profiles so you focus on what fits.",
+    includes: "",
     features: [
       "AI-powered opportunity scoring",
       "Org + personal profile matching",
@@ -46,11 +48,13 @@ const FEATURES: FeatureOption[] = [
   {
     id: "checklist",
     name: "Pre-Submission Checklist",
-    price: 99,
+    price: 129,
     icon: ClipboardCheck,
     tagline: "Prepare winning applications",
     description:
       "AI researches each opportunity and builds a step-by-step submission plan with all required documents, eligibility checks, and application drafts.",
+    includes: "Everything in AI Matching, plus:",
+    popular: true,
     features: [
       "Step-by-step submission plans",
       "Eligibility verification",
@@ -67,6 +71,7 @@ const FEATURES: FeatureOption[] = [
     tagline: "Submit on autopilot",
     description:
       "Our AI agent navigates grant portals, fills out forms, and submits applications on your behalf — with human-in-the-loop oversight at every step.",
+    includes: "Everything in Checklist, plus:",
     features: [
       "Automated portal navigation",
       "Intelligent form filling",
@@ -79,80 +84,33 @@ const FEATURES: FeatureOption[] = [
 ];
 
 const FREE_FEATURES = [
-  "Browse 30,000+ opportunities",
+  "Browse 1M+ opportunities",
   "Search, filter & sort",
   "Save opportunities",
   "Application tracker",
   "Org & personal profiles",
-  "Works in browser & desktop",
 ];
-
-const BUNDLE_PRICE = 469;
 
 export default function PricingPage() {
   const { isSignedIn } = useUser();
   const router = useRouter();
-  const [selected, setSelected] = useState<Set<FeatureId>>(new Set());
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const alaCarteTotal = useMemo(() => {
-    return FEATURES.filter((f) => selected.has(f.id)).reduce(
-      (sum, f) => sum + f.price,
-      0
-    );
-  }, [selected]);
-
-  const allSelected = selected.size === 3;
-  const useBundle = allSelected;
-  const effectivePrice = useBundle ? BUNDLE_PRICE : alaCarteTotal;
-  const savings = allSelected ? alaCarteTotal - BUNDLE_PRICE : 0;
-
-  function toggleFeature(id: FeatureId) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }
-
-  function selectAll() {
-    setSelected(new Set(FEATURES.map((f) => f.id)));
-  }
-
-  async function handleSubscribe() {
-    if (selected.size === 0) return;
-
+  async function handleSubscribe(plan: string) {
     if (!isSignedIn) {
       router.push(`/sign-up?redirect_url=/pricing`);
       return;
     }
 
-    // Determine which plan to checkout
-    let checkoutPlan: string;
-    if (useBundle) {
-      checkoutPlan = "bundle";
-    } else if (selected.size === 1) {
-      checkoutPlan = Array.from(selected)[0];
-    } else {
-      // Multiple but not all — use the highest tier as the plan
-      if (selected.has("auto_submission")) checkoutPlan = "auto_submission";
-      else if (selected.has("checklist")) checkoutPlan = "checklist";
-      else checkoutPlan = "matching";
-    }
-
-    setLoading(checkoutPlan);
+    setLoading(plan);
     setError(null);
     try {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          plan: checkoutPlan,
+          plan,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           referral: (window as any).Rewardful?.referral || undefined,
         }),
@@ -178,11 +136,11 @@ export default function PricingPage() {
           {/* Header */}
           <div className="text-center mb-16">
             <h1 className="text-4xl md:text-5xl font-bold mb-4">
-              Pick the AI features you need
+              Simple, tiered pricing
             </h1>
             <p className="text-muted text-lg max-w-2xl mx-auto">
-              Start free. Add AI features à la carte, or bundle everything and
-              save.
+              Start free. Each tier includes everything below it — upgrade as
+              you grow.
             </p>
           </div>
 
@@ -212,166 +170,106 @@ export default function PricingPage() {
             </div>
           </div>
 
-          {/* AI Features — à la carte */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold">AI Features</h2>
-              <button
-                onClick={selectAll}
-                className="text-sm text-accent hover:underline flex items-center gap-1.5"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                Select all & save ${savings > 0 ? savings : 58}/mo
-              </button>
-            </div>
+          {/* Paid tiers */}
+          <div className="grid md:grid-cols-3 gap-6 mb-8">
+            {PLANS.map((plan) => {
+              const Icon = plan.icon;
 
-            <div className="grid md:grid-cols-3 gap-6">
-              {FEATURES.map((feature) => {
-                const isSelected = selected.has(feature.id);
-                const Icon = feature.icon;
+              return (
+                <div
+                  key={plan.id}
+                  className={`relative text-left bg-card rounded-2xl p-6 flex flex-col ${
+                    plan.popular
+                      ? "border-2 border-accent shadow-lg shadow-accent/10"
+                      : "border-2 border-border"
+                  }`}
+                >
+                  {plan.popular && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <span className="bg-accent text-white text-[10px] font-semibold uppercase px-3 py-1 rounded-full">
+                        Most Popular
+                      </span>
+                    </div>
+                  )}
 
-                return (
-                  <button
-                    key={feature.id}
-                    onClick={() => toggleFeature(feature.id)}
-                    className={`relative text-left bg-card rounded-2xl p-6 transition-all ${
-                      isSelected
-                        ? "border-2 border-accent shadow-lg shadow-accent/10"
-                        : "border-2 border-border hover:border-accent/40"
-                    }`}
-                  >
-                    {/* Selection indicator */}
+                  <div className="flex items-center gap-2.5 mb-3">
                     <div
-                      className={`absolute top-4 right-4 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                        isSelected
-                          ? "border-accent bg-accent"
-                          : "border-border"
+                      className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                        plan.popular ? "bg-accent/10" : "bg-surface"
                       }`}
                     >
-                      {isSelected && (
-                        <CheckCircle2 className="w-4 h-4 text-white" />
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2.5 mb-3">
-                      <div
-                        className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-                          isSelected ? "bg-accent/10" : "bg-surface"
+                      <Icon
+                        className={`w-4.5 h-4.5 ${
+                          plan.popular ? "text-accent" : "text-muted"
                         }`}
-                      >
-                        <Icon
-                          className={`w-4.5 h-4.5 ${
-                            isSelected ? "text-accent" : "text-muted"
-                          }`}
-                        />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-sm">
-                          {feature.name}
-                        </h3>
-                        <p className="text-xs text-muted">{feature.tagline}</p>
-                      </div>
+                      />
                     </div>
-
-                    <div className="mb-4">
-                      <span className="text-3xl font-bold">
-                        ${feature.price}
-                      </span>
-                      <span className="text-muted text-sm">/mo</span>
-                    </div>
-
-                    <p className="text-xs text-muted mb-4 leading-relaxed">
-                      {feature.description}
-                    </p>
-
-                    <ul className="space-y-2">
-                      {feature.features.map((f) => (
-                        <li
-                          key={f}
-                          className="flex items-start gap-2 text-xs"
-                        >
-                          <Zap
-                            className={`w-3 h-3 shrink-0 mt-0.5 ${
-                              isSelected ? "text-accent" : "text-muted"
-                            }`}
-                          />
-                          <span className="text-muted">{f}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Checkout bar */}
-          {selected.size > 0 && (
-            <div className="sticky bottom-6 z-10">
-              <div className="bg-card border-2 border-accent rounded-2xl p-6 shadow-2xl shadow-accent/10">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
                     <div>
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-3xl font-bold">
-                          ${effectivePrice}
-                        </span>
-                        <span className="text-muted text-sm">/mo</span>
-                        {savings > 0 && (
-                          <span className="text-xs font-medium text-green-600 bg-green-50 dark:bg-green-900/30 dark:text-green-400 px-2 py-0.5 rounded-full">
-                            Save ${savings}/mo
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted mt-0.5">
-                        {useBundle
-                          ? "All Features Bundle"
-                          : `${selected.size} feature${selected.size > 1 ? "s" : ""} selected`}
-                        {allSelected && (
-                          <span className="ml-1">
-                            — was{" "}
-                            <span className="line-through">
-                              ${alaCarteTotal}
-                            </span>
-                          </span>
-                        )}
-                      </p>
+                      <h3 className="font-semibold text-sm">{plan.name}</h3>
+                      <p className="text-xs text-muted">{plan.tagline}</p>
                     </div>
                   </div>
 
+                  <div className="mb-4">
+                    <span className="text-3xl font-bold">${plan.price}</span>
+                    <span className="text-muted text-sm">/mo</span>
+                  </div>
+
+                  <p className="text-xs text-muted mb-4 leading-relaxed">
+                    {plan.description}
+                  </p>
+
+                  {plan.includes && (
+                    <p className="text-[11px] font-medium text-accent mb-2">
+                      {plan.includes}
+                    </p>
+                  )}
+
+                  <ul className="space-y-2 mb-6 flex-1">
+                    {plan.features.map((f) => (
+                      <li key={f} className="flex items-start gap-2 text-xs">
+                        <Zap
+                          className={`w-3 h-3 shrink-0 mt-0.5 ${
+                            plan.popular ? "text-accent" : "text-muted"
+                          }`}
+                        />
+                        <span className="text-muted">{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+
                   <button
-                    onClick={handleSubscribe}
+                    onClick={() => handleSubscribe(plan.id)}
                     disabled={loading !== null}
-                    className="inline-flex items-center gap-2 bg-accent text-white px-8 py-3 rounded-xl text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-50"
+                    className={`w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-medium transition-colors disabled:opacity-50 ${
+                      plan.popular
+                        ? "bg-accent text-white hover:bg-accent/90"
+                        : "border border-border hover:border-accent/40 text-foreground"
+                    }`}
                   >
-                    {loading ? (
+                    {loading === plan.id ? (
                       "Loading..."
                     ) : (
                       <>
-                        Subscribe
+                        Get {plan.name}
                         <ArrowRight className="w-4 h-4" />
                       </>
                     )}
                   </button>
                 </div>
-              </div>
-            </div>
-          )}
+              );
+            })}
+          </div>
 
-          {/* Get started free CTA when nothing selected */}
-          {selected.size === 0 && (
-            <div className="text-center mt-8">
-              <button
-                onClick={() =>
-                  router.push(isSignedIn ? "/app" : "/sign-up")
-                }
-                className="inline-flex items-center gap-2 bg-accent text-white px-8 py-3 rounded-xl text-sm font-medium hover:bg-accent/90 transition-colors"
-              >
-                Get Started Free
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
+          {/* Get started free CTA */}
+          <div className="text-center mt-8">
+            <button
+              onClick={() => router.push(isSignedIn ? "/app" : "/sign-up")}
+              className="text-sm text-accent hover:underline"
+            >
+              Or get started free →
+            </button>
+          </div>
 
           {error && (
             <div className="mt-6 text-center">

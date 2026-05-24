@@ -14,7 +14,7 @@ export default function NotFound() {
           </div>
           <h1 className="text-5xl font-bold mb-3">404</h1>
           <p className="text-lg text-muted mb-8">
-            This page doesn&apos;t exist — but there are 30,000+
+            This page doesn&apos;t exist — but there are over a million
             opportunities that do.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">

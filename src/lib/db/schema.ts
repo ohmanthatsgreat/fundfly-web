@@ -333,6 +333,34 @@ export const aiCredits = pgTable(
   (t) => [index("idx_ai_credits_user").on(t.userId)]
 );
 
+// ─── Blog Posts ───────────────────────────────────────────────────
+
+export const blogPosts = pgTable(
+  "blog_posts",
+  {
+    id: serial("id").primaryKey(),
+    slug: text("slug").notNull().unique(),
+    title: text("title").notNull(),
+    excerpt: text("excerpt").notNull(),
+    content: text("content").notNull(), // markdown
+    metaDescription: text("meta_description"),
+    metaKeywords: text("meta_keywords"),
+    category: text("category").notNull(), // 'grants' | 'sbir' | 'tips' | 'news' | 'personal'
+    tags: text("tags"), // comma-separated
+    author: text("author").default("FundFly Team"),
+    status: text("status").default("draft"), // 'draft' | 'published'
+    publishedAt: timestamp("published_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_blog_slug").on(t.slug),
+    index("idx_blog_status").on(t.status),
+    index("idx_blog_published").on(t.publishedAt),
+    index("idx_blog_category").on(t.category),
+  ]
+);
+
 export const userSettings = pgTable(
   "user_settings",
   {

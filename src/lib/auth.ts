@@ -9,15 +9,15 @@ const ADMIN_USER_IDS = (process.env.ADMIN_USER_IDS || "")
 /** Features that can be individually subscribed to or bundled */
 export type Feature = "matching" | "checklist" | "auto_submission";
 
-/** Plans available in Stripe */
+/** Plans available in Stripe (tiered — each higher plan includes everything below) */
 export type Plan = "matching" | "checklist" | "auto_submission" | "bundle";
 
-/** Which features each plan unlocks */
+/** Which features each plan unlocks (tiered stacking) */
 const PLAN_FEATURES: Record<Plan, Feature[]> = {
   matching: ["matching"],
-  checklist: ["checklist"],
-  auto_submission: ["auto_submission"],
-  bundle: ["matching", "checklist", "auto_submission"],
+  checklist: ["matching", "checklist"],
+  auto_submission: ["matching", "checklist", "auto_submission"],
+  bundle: ["matching", "checklist", "auto_submission"], // legacy alias
 };
 
 /** Auto-submission monthly AI cost cap in cents ($150 = 15000 cents) */

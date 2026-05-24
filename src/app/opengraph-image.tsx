@@ -85,7 +85,7 @@ export default function OGImage() {
             marginBottom: "40px",
           }}
         >
-          30,000+ opportunities from Grants.gov, SBIR.gov, and state portals.
+          1,000,000+ opportunities from Grants.gov, SBIR.gov, SAM.gov, and more.
           AI matching, application drafting, and automated submissions.
         </div>
 
@@ -98,7 +98,7 @@ export default function OGImage() {
         >
           {[
             { value: "$500B+", label: "Federal grants/year" },
-            { value: "30K+", label: "Opportunities" },
+            { value: "1M+", label: "Opportunities" },
             { value: "98%", label: "Match accuracy" },
           ].map((stat) => (
             <div

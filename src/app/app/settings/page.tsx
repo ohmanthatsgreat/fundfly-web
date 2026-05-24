@@ -55,15 +55,15 @@ export default function SettingsPage() {
             <div className="flex items-center gap-3">
               <span className="text-sm text-muted">Plan:</span>
               <span className="text-sm font-medium">
-                {subscription.plan === "bundle"
-                  ? "All Features Bundle"
-                  : subscription.plan === "matching"
-                    ? "AI Matching"
+                {subscription.plan === "auto_submission"
+                  ? "Auto-Submission"
+                  : subscription.plan === "bundle"
+                    ? "Auto-Submission"
                     : subscription.plan === "checklist"
                       ? "Pre-Submission Checklist"
-                      : subscription.plan === "auto_submission"
-                        ? "Auto-Submission"
-                        : `AI ${subscription.plan}`}
+                      : subscription.plan === "matching"
+                        ? "AI Matching"
+                        : subscription.plan}
               </span>
               <span
                 className={`text-[10px] font-medium uppercase px-2 py-0.5 rounded-md ${
