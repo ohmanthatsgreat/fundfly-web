@@ -78,7 +78,7 @@ const TOPIC_POOLS: Record<BlogCategory, string[]> = {
     "Recent changes to federal grant application processes",
     "How AI is transforming grant discovery and application",
     "Trends in government funding for small businesses",
-    "New foundation funding opportunities for 2025",
+    "New foundation funding opportunities for startups",
     "How inflation is affecting grant funding amounts",
     "Digital transformation in the grants management ecosystem",
     "The future of automated grant applications",
@@ -190,6 +190,14 @@ export async function generateBlogPost(
   const topic = topicOverride || (await pickTopic(category));
   const categoryLabel = CATEGORY_LABELS[category];
 
+  const today = new Date();
+  const currentDate = today.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const currentYear = today.getFullYear();
+
   const response = await getClient().messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 4096,
@@ -198,23 +206,34 @@ export async function generateBlogPost(
         role: "user",
         content: `You are an expert content writer for FundFly, an AI-powered grant discovery and application platform that helps businesses and individuals find and apply for government grants, SBIR/STTR programs, foundation funding, and personal grants/scholarships. FundFly aggregates over 1 million live funding opportunities.
 
+Today's date is ${currentDate}. The current year is ${currentYear}. Always reference the current year when discussing timelines, deadlines, or recent developments. Never reference past years as current.
+
 Write a blog post about: "${topic}"
 Category: ${categoryLabel}
 
 Requirements:
 1. Write in a professional but approachable tone. Be helpful and actionable.
 2. Include specific, practical advice that readers can act on immediately.
-3. Structure with clear headings (## for H2, ### for H3). Use markdown formatting.
+3. Structure with clear headings using ## for H2 and ### for H3.
 4. Include 3-5 key sections with detailed content.
 5. Total length: 800-1200 words.
 6. Naturally incorporate relevant keywords for SEO without keyword stuffing.
 7. End with a call-to-action encouraging readers to try FundFly for finding and applying to grants. Mention that FundFly uses AI to match opportunities to your profile.
 8. Do NOT include the title in the content body — it will be rendered separately.
 
+CRITICAL formatting rules:
+- Do NOT use bold text markers (**text**). Write clean prose without emphasis markers. If something is important, convey it through strong word choice and sentence structure, not formatting.
+- Do NOT use italic markers (*text*).
+- Headings (## and ###) are the ONLY markdown formatting allowed.
+- Use plain numbered lists (1. 2. 3.) or bullet lists (- item) when listing items.
+- Do NOT use subheadings that are just bold text like "**Key Takeaway:**" — use proper ### headings or integrate the point into the prose.
+- Write like a skilled human journalist or industry expert. Avoid formulaic structures, excessive bullet points, and overly enthusiastic language.
+- No emojis. No exclamation marks in headings.
+
 Respond with a JSON object containing:
-- "title": compelling, SEO-friendly title (50-70 characters)
+- "title": compelling, SEO-friendly title (50-70 characters). Must reference ${currentYear} if the topic is time-sensitive.
 - "excerpt": engaging 1-2 sentence summary (120-160 characters)
-- "content": full markdown content (do NOT start with the title)
+- "content": full content using only ## and ### headings, plain lists, and clean prose. No bold, no italic, no other markdown formatting.
 - "metaDescription": SEO meta description (150-160 characters)
 - "metaKeywords": comma-separated keywords (8-12 keywords)
 - "tags": comma-separated relevant tags (4-6 tags)

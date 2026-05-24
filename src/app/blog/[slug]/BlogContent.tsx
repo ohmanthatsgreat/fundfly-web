@@ -19,10 +19,11 @@ function markdownToHtml(md: string): string {
     .replace(/^### (.+)$/gm, '<h3 class="text-lg font-semibold mt-8 mb-3">$1</h3>')
     .replace(/^## (.+)$/gm, '<h2 class="text-xl font-bold mt-10 mb-4">$1</h2>')
     .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold mt-10 mb-4">$1</h1>')
-    // Bold and italic
-    .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    // Bold and italic — convert to plain text (strip markers instead of adding <strong>/<em>)
+    // This keeps the content looking clean and non-AI-generated
+    .replace(/\*\*\*(.+?)\*\*\*/g, "$1")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "$1")
     // Links
     .replace(
       /\[([^\]]+)\]\(([^)]+)\)/g,
