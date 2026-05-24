@@ -8,10 +8,8 @@ import {
   personalProfiles,
   dismissedOpportunities,
 } from "@/lib/db";
-import { eq, notInArray, sql } from "drizzle-orm";
-import Anthropic from "@anthropic-ai/sdk";
-
-const anthropic = new Anthropic();
+import { eq, notInArray } from "drizzle-orm";
+import { matchOpportunities, matchPersonalOpportunities } from "@/lib/ai";
 
 export async function POST(request: NextRequest) {
   const userId = await requireAuth();
@@ -27,43 +25,43 @@ export async function POST(request: NextRequest) {
   }
 
   // Load profile
-  let profileText = "";
+  let profile: Record<string, unknown> | null = null;
   if (mode === "org") {
-    const [profile] = await db
+    const [row] = await db
       .select()
       .from(userProfiles)
       .where(eq(userProfiles.userId, userId))
       .limit(1);
-    if (!profile) {
+    if (!row) {
       return Response.json(
         { error: "Please fill out your organization profile first." },
         { status: 400 }
       );
     }
-    profileText = JSON.stringify(profile);
+    profile = row as unknown as Record<string, unknown>;
   } else {
-    const [profile] = await db
+    const [row] = await db
       .select()
       .from(personalProfiles)
       .where(eq(personalProfiles.userId, userId))
       .limit(1);
-    if (!profile) {
+    if (!row) {
       return Response.json(
         { error: "Please fill out your personal profile first." },
         { status: 400 }
       );
     }
-    profileText = JSON.stringify(profile);
+    profile = row as unknown as Record<string, unknown>;
   }
 
-  // Get dismissed IDs
+  // Get dismissed IDs to exclude
   const dismissed = await db
     .select({ id: dismissedOpportunities.opportunityId })
     .from(dismissedOpportunities)
     .where(eq(dismissedOpportunities.userId, userId));
   const dismissedIds = dismissed.map((d) => d.id);
 
-  // Get opportunities in batches
+  // Load opportunities to score
   const allOpps = await db
     .select({
       id: opportunities.id,
@@ -75,6 +73,7 @@ export async function POST(request: NextRequest) {
       fundingMax: opportunities.fundingMax,
       deadline: opportunities.deadline,
       eligibilityTypes: opportunities.eligibilityTypes,
+      cfdaNumber: opportunities.cfdaNumber,
     })
     .from(opportunities)
     .where(
@@ -82,70 +81,46 @@ export async function POST(request: NextRequest) {
         ? notInArray(opportunities.id, dismissedIds)
         : undefined
     )
-    .limit(500); // Process top 500 at a time
+    .limit(500);
 
-  // Batch in groups of 25 for AI
-  const batchSize = 25;
-  let totalMatches = 0;
+  // Run AI matching using the library
+  try {
+    const matches =
+      mode === "personal"
+        ? await matchPersonalOpportunities(profile, allOpps)
+        : await matchOpportunities(profile, allOpps);
 
-  for (let i = 0; i < allOpps.length; i += batchSize) {
-    const batch = allOpps.slice(i, i + batchSize);
-
-    const oppSummaries = batch
-      .map(
-        (o) =>
-          `ID: ${o.id}\nTitle: ${o.title}\nAgency: ${o.agency || "N/A"}\nType: ${o.type}\nFunding: $${o.fundingMin || 0} - $${o.fundingMax || 0}\nDeadline: ${o.deadline || "Rolling"}\nDescription: ${(o.description || "").slice(0, 300)}`
-      )
-      .join("\n---\n");
-
-    try {
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-5-20250514",
-        max_tokens: 4096,
-        system:
-          "You are a grant matching expert. Score each opportunity 0-100 against the applicant profile. Return ONLY a JSON array of objects with: opportunity_id, score (integer 0-100), summary (1 sentence why it matches or doesn't). No other text.",
-        messages: [
-          {
-            role: "user",
-            content: `Applicant Profile:\n${profileText}\n\nOpportunities:\n${oppSummaries}\n\nScore each opportunity 0-100. Return JSON array only.`,
-          },
-        ],
-      });
-
-      const text =
-        response.content[0].type === "text" ? response.content[0].text : "";
-
-      // Parse JSON from response
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        const scores = JSON.parse(jsonMatch[0]);
-        for (const s of scores) {
-          if (s.opportunity_id && typeof s.score === "number") {
-            await db
-              .insert(aiMatches)
-              .values({
-                userId,
-                opportunityId: s.opportunity_id,
-                matchMode: mode,
-                score: s.score,
-                summary: s.summary || null,
-              })
-              .onConflictDoUpdate({
-                target: [aiMatches.userId, aiMatches.opportunityId, aiMatches.matchMode],
-                set: {
-                  score: s.score,
-                  summary: s.summary || null,
-                  createdAt: new Date(),
-                },
-              });
-            totalMatches++;
-          }
-        }
+    // Save results to DB
+    let totalMatches = 0;
+    for (const m of matches) {
+      if (m.opportunity_id && typeof m.score === "number") {
+        await db
+          .insert(aiMatches)
+          .values({
+            userId,
+            opportunityId: m.opportunity_id,
+            matchMode: mode,
+            score: m.score,
+            summary: m.summary || null,
+            matchReasoning: m.match_reasoning || null,
+          })
+          .onConflictDoUpdate({
+            target: [aiMatches.userId, aiMatches.opportunityId, aiMatches.matchMode],
+            set: {
+              score: m.score,
+              summary: m.summary || null,
+              matchReasoning: m.match_reasoning || null,
+              createdAt: new Date(),
+            },
+          });
+        totalMatches++;
       }
-    } catch (err) {
-      console.error("AI matching error:", err);
     }
-  }
 
-  return Response.json({ success: true, matchesProcessed: totalMatches });
+    return Response.json({ success: true, matchesProcessed: totalMatches });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "AI matching failed";
+    console.error("AI matching error:", err);
+    return Response.json({ error: message }, { status: 500 });
+  }
 }
