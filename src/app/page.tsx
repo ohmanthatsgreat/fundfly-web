@@ -19,7 +19,7 @@ const jsonLd = {
   "@type": "SoftwareApplication",
   name: "FundFly",
   applicationCategory: "BusinessApplication",
-  operatingSystem: "Web, macOS, Windows",
+  operatingSystem: "Web",
   url: "https://fundfly.app",
   description:
     "AI-powered grant discovery and application platform. Find and apply to grants, SBIR funding, and foundation programs.",
@@ -27,7 +27,7 @@ const jsonLd = {
     "@type": "Offer",
     price: "0",
     priceCurrency: "USD",
-    description: "Free tier with 30,000+ searchable grant opportunities",
+    description: "Free tier with 1,000,000+ searchable grant opportunities",
   },
   aggregateRating: {
     "@type": "AggregateRating",
@@ -51,7 +51,7 @@ export default function Home() {
         <div className="max-w-5xl mx-auto px-6 pt-24 pb-20 text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent-light text-accent text-sm font-medium mb-8">
             <Zap className="w-3.5 h-3.5" />
-            30,000+ opportunities indexed
+            1M+ opportunities indexed
           </div>
 
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.08] mb-6">
@@ -93,7 +93,7 @@ export default function Home() {
             <div className="text-sm opacity-60 mt-1">In federal grants awarded annually</div>
           </div>
           <div>
-            <div className="text-4xl font-bold">30,000+</div>
+            <div className="text-4xl font-bold">1M+</div>
             <div className="text-sm opacity-60 mt-1">Opportunities indexed and searchable</div>
           </div>
           <div>
@@ -122,7 +122,7 @@ export default function Home() {
                 step: "01",
                 icon: Search,
                 title: "Browse & Search",
-                desc: "30,000+ grants from Grants.gov, SBIR.gov, and state portals. Filter by type, agency, funding amount, deadline, and eligibility.",
+                desc: "Over 1 million grants from Grants.gov, SBIR.gov, state portals, and foundation databases. Filter by type, agency, funding amount, deadline, and eligibility.",
               },
               {
                 step: "02",
@@ -228,7 +228,7 @@ export default function Home() {
               {
                 icon: Search,
                 title: "Smart Search",
-                desc: "Full-text search across 30K+ opportunities with filters for type, agency, amount, and deadline.",
+                desc: "Full-text search across 1M+ opportunities with filters for type, agency, amount, and deadline.",
               },
               {
                 icon: Brain,
@@ -252,8 +252,8 @@ export default function Home() {
               },
               {
                 icon: Zap,
-                title: "Desktop + Web",
-                desc: "Use it in your browser or download the desktop app. Same experience, your choice.",
+                title: "Instant Access",
+                desc: "No downloads or installs. Sign up and start finding grants in your browser in under 60 seconds.",
               },
             ].map((item) => (
               <div
@@ -287,7 +287,7 @@ export default function Home() {
             <ArrowRight className="w-4 h-4" />
           </Link>
           <p className="text-sm opacity-60 mt-4">
-            No credit card required. Works on Mac, Windows, and in your browser.
+            No credit card required. Start finding funding in minutes.
           </p>
         </div>
       </section>

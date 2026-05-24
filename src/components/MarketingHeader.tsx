@@ -26,9 +26,6 @@ export default function MarketingHeader() {
           <Link href="/pricing" className="hover:text-foreground transition-colors">
             Pricing
           </Link>
-          <Link href="/download" className="hover:text-foreground transition-colors">
-            Download
-          </Link>
         </nav>
 
         <div className="flex items-center gap-3">
@@ -81,13 +78,6 @@ export default function MarketingHeader() {
               className="text-muted hover:text-foreground transition-colors py-1"
             >
               Pricing
-            </Link>
-            <Link
-              href="/download"
-              onClick={() => setMobileOpen(false)}
-              className="text-muted hover:text-foreground transition-colors py-1"
-            >
-              Download
             </Link>
             {!isSignedIn && (
               <SignInButton mode="modal">

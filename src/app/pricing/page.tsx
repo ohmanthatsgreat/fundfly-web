@@ -151,7 +151,11 @@ export default function PricingPage() {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: checkoutPlan }),
+        body: JSON.stringify({
+          plan: checkoutPlan,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          referral: (window as any).Rewardful?.referral || undefined,
+        }),
       });
       const data = await res.json();
       if (data.url) {

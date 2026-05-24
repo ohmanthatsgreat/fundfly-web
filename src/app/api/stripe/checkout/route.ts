@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
   const user = await currentUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { plan } = await request.json();
+  const { plan, referral } = await request.json();
   if (!VALID_PLANS.includes(plan)) {
     return Response.json({ error: "Invalid plan" }, { status: 400 });
   }
@@ -77,7 +77,9 @@ export async function POST(request: NextRequest) {
     line_items: [{ price: priceId, quantity: 1 }],
     success_url: `${baseUrl}/app/settings?success=true`,
     cancel_url: `${baseUrl}/pricing`,
+    allow_promotion_codes: true,
     metadata: { plan, customerId: String(customer.id) },
+    ...(referral ? { client_reference_id: referral } : {}),
   });
 
   return Response.json({ url: session.url });

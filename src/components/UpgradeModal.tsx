@@ -56,7 +56,11 @@ export default function UpgradeModal({
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({
+          plan,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          referral: (window as any).Rewardful?.referral || undefined,
+        }),
       });
       const data = await res.json();
       if (data.url) {

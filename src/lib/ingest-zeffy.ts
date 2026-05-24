@@ -350,7 +350,7 @@ const ALL_CATEGORIES = [
   "Suicide Prevention Nonprofits", "Alumni Groups",
 ];
 
-const CATEGORIES_PER_SYNC = 5;
+const CATEGORIES_PER_SYNC = 10;
 
 // ─── Main sync function ────────────────────────────────────────────
 

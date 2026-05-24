@@ -97,6 +97,13 @@ export default function RootLayout({
               __html: `(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme:dark)").matches))document.documentElement.classList.add("dark")}catch(e){}})()`,
             }}
           />
+          {/* Rewardful affiliate tracking */}
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `(function(w,r){w._rwq=r;w[r]=w[r]||function(){(w[r].q=w[r].q||[]).push(arguments)}})(window,'rewardful');`,
+            }}
+          />
+          <script async src="https://r.wdfl.co/rw.js" data-rewardful="985d00" />
         </head>
         <body className="min-h-full flex flex-col">
           <ThemeProvider>
