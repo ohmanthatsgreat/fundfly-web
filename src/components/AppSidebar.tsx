@@ -22,12 +22,38 @@ import {
   Moon,
 } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTheme } from "./ThemeProvider";
 
 const ADMIN_USER_IDS = (process.env.NEXT_PUBLIC_ADMIN_USER_IDS || "")
   .split(",")
   .filter(Boolean);
+
+type Stats = {
+  total: number;
+  grants: number;
+  sbir: number;
+  personal: number;
+  saved: number;
+  applications: number;
+  closingSoon: number;
+};
+
+/** Map nav href → stats key for count badges */
+const STAT_KEYS: Record<string, keyof Stats> = {
+  "/app": "total",
+  "/app/biz-grants": "grants",
+  "/app/sbir": "sbir",
+  "/app/personal": "personal",
+  "/app/saved": "saved",
+  "/app/applications": "applications",
+};
+
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+  return String(n);
+}
 
 const baseNavItems = [
   { href: "/app", label: "All Opportunities", icon: LayoutGrid, tour: "nav-all" },
@@ -50,6 +76,14 @@ export default function AppSidebar({ onNavigate }: { onNavigate?: () => void }) 
   const { user } = useUser();
   const [collapsed, setCollapsed] = useState(false);
   const { resolved, setTheme } = useTheme();
+  const [stats, setStats] = useState<Stats | null>(null);
+
+  useEffect(() => {
+    fetch("/api/app/stats")
+      .then((r) => r.json())
+      .then(setStats)
+      .catch(() => {});
+  }, []);
 
   const isAdmin = user?.id ? ADMIN_USER_IDS.includes(user.id) : false;
 
@@ -109,6 +143,9 @@ export default function AppSidebar({ onNavigate }: { onNavigate?: () => void }) 
             (navItem.href !== "/app" && pathname.startsWith(navItem.href));
           const Icon = navItem.icon;
 
+          const statKey = STAT_KEYS[navItem.href];
+          const countValue = statKey && stats ? stats[statKey] : null;
+
           return (
             <Link
               key={navItem.href}
@@ -123,7 +160,20 @@ export default function AppSidebar({ onNavigate }: { onNavigate?: () => void }) 
               title={collapsed ? navItem.label : undefined}
             >
               <Icon className="w-4.5 h-4.5 shrink-0" />
-              {!collapsed && <span>{navItem.label}</span>}
+              {!collapsed && (
+                <>
+                  <span className="flex-1">{navItem.label}</span>
+                  {countValue != null && countValue > 0 && (
+                    <span
+                      className={`text-[11px] tabular-nums ${
+                        isActive ? "text-accent/70" : "text-muted"
+                      }`}
+                    >
+                      {formatCount(countValue)}
+                    </span>
+                  )}
+                </>
+              )}
             </Link>
           );
         })}

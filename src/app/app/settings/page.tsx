@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Settings, Loader2, CreditCard, Key, ExternalLink, RotateCcw } from "lucide-react";
+import { Loader2, CreditCard, ExternalLink, RotateCcw } from "lucide-react";
 
 export default function SettingsPage() {
   const [subscription, setSubscription] = useState<{
@@ -123,22 +123,18 @@ export default function SettingsPage() {
         </button>
       </div>
 
-      {/* Desktop app key */}
+      {/* Support */}
       <div className="bg-card border border-border rounded-xl p-6">
         <div className="flex items-center gap-3 mb-4">
-          <Key className="w-5 h-5 text-accent" />
-          <h2 className="font-semibold">Desktop App License</h2>
+          <ExternalLink className="w-5 h-5 text-accent" />
+          <h2 className="font-semibold">Support</h2>
         </div>
-        <p className="text-sm text-muted mb-3">
-          If you also use the FundFly desktop app, your license key appears in
-          your dashboard after subscribing.
+        <p className="text-sm text-muted">
+          Need help? Reach out to us at{" "}
+          <a href="mailto:support@fundfly.app" className="text-accent hover:underline">
+            support@fundfly.app
+          </a>
         </p>
-        <a
-          href="/download"
-          className="text-sm text-accent hover:underline"
-        >
-          Download the desktop app
-        </a>
       </div>
     </div>
   );
