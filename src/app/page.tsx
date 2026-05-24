@@ -27,12 +27,7 @@ const jsonLd = {
     "@type": "Offer",
     price: "0",
     priceCurrency: "USD",
-    description: "Free tier with 1,000,000+ searchable grant opportunities",
-  },
-  aggregateRating: {
-    "@type": "AggregateRating",
-    ratingValue: "4.8",
-    ratingCount: "120",
+    description: "Free tier with searchable grant opportunities",
   },
 };
 
@@ -51,7 +46,7 @@ export default function Home() {
         <div className="max-w-5xl mx-auto px-6 pt-24 pb-20 text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent-light text-accent text-sm font-medium mb-8">
             <Zap className="w-3.5 h-3.5" />
-            1M+ opportunities indexed
+            AI-powered grant discovery
           </div>
 
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.08] mb-6">
@@ -97,8 +92,8 @@ export default function Home() {
             <div className="text-sm opacity-60 mt-1">Opportunities indexed and searchable</div>
           </div>
           <div>
-            <div className="text-4xl font-bold">98%</div>
-            <div className="text-sm opacity-60 mt-1">AI match accuracy for eligible opportunities</div>
+            <div className="text-4xl font-bold">50+</div>
+            <div className="text-sm opacity-60 mt-1">Federal, state & foundation data sources</div>
           </div>
         </div>
       </section>
@@ -122,7 +117,7 @@ export default function Home() {
                 step: "01",
                 icon: Search,
                 title: "Browse & Search",
-                desc: "Over 1 million grants from Grants.gov, SBIR.gov, state portals, and foundation databases. Filter by type, agency, funding amount, deadline, and eligibility.",
+                desc: "Grants from Grants.gov, SBIR.gov, state portals, and foundation databases — all in one place. Filter by type, agency, funding amount, deadline, and eligibility.",
               },
               {
                 step: "02",
@@ -228,7 +223,7 @@ export default function Home() {
               {
                 icon: Search,
                 title: "Smart Search",
-                desc: "Full-text search across 1M+ opportunities with filters for type, agency, amount, and deadline.",
+                desc: "Full-text search across every indexed opportunity with filters for type, agency, amount, and deadline.",
               },
               {
                 icon: Brain,
@@ -248,7 +243,7 @@ export default function Home() {
               {
                 icon: Shield,
                 title: "Secure & Private",
-                desc: "Your data stays yours. Bank-grade encryption, no data selling.",
+                desc: "Your data stays yours. Encrypted in transit and at rest, never sold to third parties.",
               },
               {
                 icon: Zap,
@@ -269,15 +264,62 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Pricing teaser */}
+      <section className="py-24 bg-surface">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Start free, upgrade when you&apos;re ready
+            </h2>
+            <p className="text-muted text-lg max-w-xl mx-auto">
+              Each tier includes everything below it. No hidden fees.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-4 gap-4 text-center">
+            <div className="bg-card border border-border rounded-xl p-6">
+              <div className="text-2xl font-bold mb-1">Free</div>
+              <div className="text-sm text-muted mb-3">$0 forever</div>
+              <p className="text-xs text-muted">Browse, search & save grants</p>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-6">
+              <div className="text-2xl font-bold mb-1">Matching</div>
+              <div className="text-sm text-muted mb-3">$29/mo</div>
+              <p className="text-xs text-muted">AI scores every grant against your profile</p>
+            </div>
+            <div className="bg-card border-2 border-accent rounded-xl p-6 shadow-md shadow-accent/10">
+              <div className="text-2xl font-bold mb-1">Checklist</div>
+              <div className="text-sm text-muted mb-3">$129/mo</div>
+              <p className="text-xs text-muted">Step-by-step plans & AI drafting</p>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-6">
+              <div className="text-2xl font-bold mb-1">Auto-Submit</div>
+              <div className="text-sm text-muted mb-3">$399/mo</div>
+              <p className="text-xs text-muted">AI agent fills & submits for you</p>
+            </div>
+          </div>
+
+          <div className="text-center mt-8">
+            <Link
+              href="/pricing"
+              className="text-accent text-sm font-medium hover:underline inline-flex items-center gap-1"
+            >
+              See full plan details
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="py-24 bg-gradient-to-br from-accent to-blue-700">
         <div className="max-w-3xl mx-auto px-6 text-center text-white">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Your next grant is waiting.
+            Grants expire daily. Don&apos;t miss yours.
           </h2>
           <p className="text-lg opacity-80 mb-10">
-            Join thousands of founders, artists, and individuals who bypassed
-            the bureaucracy and secured their funding.
+            Built for nonprofits, founders, artists, and individuals
+            who&apos;d rather write grants than search for them.
           </p>
           <Link
             href="/sign-up"

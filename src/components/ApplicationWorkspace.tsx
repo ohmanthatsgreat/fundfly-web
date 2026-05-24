@@ -14,9 +14,11 @@ import {
   ChevronUp,
   FileText,
   Globe,
+  Mail,
 } from "lucide-react";
 import SubmissionPlanView from "./SubmissionPlanView";
 import UpgradeModal from "./UpgradeModal";
+import { generateApplicationDocx } from "@/lib/generate-docx";
 
 type Section = {
   id: number;
@@ -60,9 +62,11 @@ function statusLabel(s: string) {
 export default function ApplicationWorkspace({
   applicationId,
   onBack,
+  initialView,
 }: {
   applicationId: number;
   onBack: () => void;
+  initialView?: "workspace" | "submission";
 }) {
   const [app, setApp] = useState<AppData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,7 +76,7 @@ export default function ApplicationWorkspace({
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const [saving, setSaving] = useState(false);
-  const [showSubmission, setShowSubmission] = useState(false);
+  const [showSubmission, setShowSubmission] = useState(initialView === "submission");
   const [showUpgrade, setShowUpgrade] = useState(false);
 
   const fetchApp = useCallback(async () => {
@@ -249,6 +253,35 @@ export default function ApplicationWorkspace({
     URL.revokeObjectURL(url);
   };
 
+  const [exportingDocx, setExportingDocx] = useState(false);
+
+  const handleExportDocx = async () => {
+    if (!app || app.sections.length === 0) return;
+    setExportingDocx(true);
+    try {
+      const blob = await generateApplicationDocx(
+        app.sections.map((s) => ({
+          sectionTitle: s.sectionTitle,
+          content: s.content,
+        })),
+        {
+          title: app.title,
+          agency: app.agency,
+          deadline: app.deadline,
+        }
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${app.title.slice(0, 50).replace(/[^a-zA-Z0-9]/g, "_")}_Application.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Failed to generate document. Please try again.");
+    }
+    setExportingDocx(false);
+  };
+
   const handleUpdateStatus = async (status: string) => {
     if (!app) return;
     setApp({ ...app, status });
@@ -380,7 +413,20 @@ export default function ApplicationWorkspace({
               onClick={handleExport}
               className="flex items-center gap-2 px-3 py-2 text-sm font-medium border border-border text-muted hover:text-foreground rounded-lg hover:bg-surface hover:border-border transition-all duration-150"
             >
-              <Download size={14} /> Export
+              <Download size={14} /> Export MD
+            </button>
+            <button
+              onClick={handleExportDocx}
+              disabled={exportingDocx}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium border border-border text-muted hover:text-foreground rounded-lg hover:bg-surface hover:border-border transition-all duration-150 disabled:opacity-50"
+              title="Download as formatted Word document — ideal for email/mail submissions"
+            >
+              {exportingDocx ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Mail size={14} />
+              )}
+              Download DOCX
             </button>
             {app.sourceUrl && (
               <a

@@ -12,7 +12,7 @@ import { researchSubmissionPlan } from "@/lib/submission-planner";
 
 export async function POST(request: NextRequest) {
   const userId = await requireAuth();
-  const { application_id } = await request.json();
+  const { application_id, update_artifacts } = await request.json();
 
   // Check subscription — submission planning requires "checklist" feature
   const sub = await checkSubscription(userId, "checklist");
@@ -28,6 +28,29 @@ export async function POST(request: NextRequest) {
       { error: "application_id required" },
       { status: 400 }
     );
+  }
+
+  // If updating artifacts (e.g., step readiness checkboxes), handle that separately
+  if (update_artifacts) {
+    const [planRow] = await db
+      .select()
+      .from(submissionPlans)
+      .where(eq(submissionPlans.applicationId, application_id))
+      .limit(1);
+
+    if (!planRow) {
+      return Response.json({ error: "No plan found" }, { status: 404 });
+    }
+
+    const existing = JSON.parse(planRow.artifactsJson || "{}");
+    const merged = { ...existing, ...update_artifacts };
+
+    await db
+      .update(submissionPlans)
+      .set({ artifactsJson: JSON.stringify(merged), updatedAt: new Date() })
+      .where(eq(submissionPlans.id, planRow.id));
+
+    return Response.json({ success: true, artifacts: merged });
   }
 
   // Verify ownership and get application + opportunity

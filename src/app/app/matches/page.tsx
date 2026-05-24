@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Brain, Loader2, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Brain, Loader2, Sparkles, ChevronDown, ChevronUp, RotateCcw, Search } from "lucide-react";
 import OpportunityCard, { type Opportunity } from "@/components/OpportunityCard";
 import UpgradeModal from "@/components/UpgradeModal";
 
@@ -15,11 +16,18 @@ interface Match {
 }
 
 export default function MatchesPage() {
+  const router = useRouter();
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [mode, setMode] = useState<"org" | "personal">("org");
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [upgradeFeature, setUpgradeFeature] = useState<"matching" | "checklist">("matching");
+  const [hasMore, setHasMore] = useState(false);
+  const [nextOffset, setNextOffset] = useState(0);
+  const [lastScanned, setLastScanned] = useState(0);
+  const [expandedReasons, setExpandedReasons] = useState<Set<number>>(new Set());
+  const [userPlan, setUserPlan] = useState<string | null>(null);
 
   const fetchMatches = useCallback(async () => {
     setLoading(true);
@@ -35,13 +43,24 @@ export default function MatchesPage() {
     fetchMatches();
   }, [fetchMatches]);
 
-  async function runMatch() {
+  useEffect(() => {
+    fetch("/api/app/subscription")
+      .then((r) => r.json())
+      .then((d) => setUserPlan(d.subscription?.plan || null))
+      .catch(() => {});
+  }, []);
+
+  async function runMatch(reset = false) {
     setRunning(true);
     try {
       const res = await fetch("/api/app/ai-match", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode }),
+        body: JSON.stringify({
+          mode,
+          offset: reset ? 0 : nextOffset,
+          reset,
+        }),
       });
       const data = await res.json();
       if (data.error === "subscription_required") {
@@ -49,9 +68,49 @@ export default function MatchesPage() {
         setRunning(false);
         return;
       }
+      if (data.error) {
+        setRunning(false);
+        return;
+      }
+      setHasMore(data.hasMore ?? false);
+      setNextOffset(data.nextOffset ?? 0);
+      setLastScanned(data.scanned ?? 0);
       await fetchMatches();
     } catch {}
     setRunning(false);
+  }
+
+  function toggleReason(matchId: number) {
+    setExpandedReasons((prev) => {
+      const next = new Set(prev);
+      if (next.has(matchId)) {
+        next.delete(matchId);
+      } else {
+        next.add(matchId);
+      }
+      return next;
+    });
+  }
+
+  async function handleNextStep(opp: Opportunity) {
+    const hasChecklist = userPlan && ["checklist", "auto_submission", "bundle"].includes(userPlan);
+    if (!hasChecklist) {
+      setUpgradeFeature("checklist");
+      setShowUpgrade(true);
+      return;
+    }
+    const res = await fetch("/api/app/applications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ opportunityId: opp.id }),
+    });
+    const data = await res.json();
+    const appId = data.application?.id;
+    if (!appId) return;
+
+    const hasAutoSub = userPlan && ["auto_submission", "bundle"].includes(userPlan);
+    const view = hasAutoSub ? "submission" : "workspace";
+    router.push(`/app/applications?id=${appId}&view=${view}`);
   }
 
   return (
@@ -64,18 +123,31 @@ export default function MatchesPage() {
           </p>
         </div>
 
-        <button
-          onClick={runMatch}
-          disabled={running}
-          className="inline-flex items-center gap-2 bg-accent text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-50"
-        >
-          {running ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Sparkles className="w-4 h-4" />
+        <div className="flex items-center gap-2">
+          {matches.length > 0 && (
+            <button
+              onClick={() => runMatch(true)}
+              disabled={running}
+              className="inline-flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium border border-border text-muted hover:text-foreground hover:bg-surface transition-colors disabled:opacity-50"
+              title="Clear existing matches and start fresh"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Re-scan from Start
+            </button>
           )}
-          {running ? "Matching..." : "Run AI Match"}
-        </button>
+          <button
+            onClick={() => runMatch(false)}
+            disabled={running}
+            className="inline-flex items-center gap-2 bg-accent text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-50"
+          >
+            {running ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Sparkles className="w-4 h-4" />
+            )}
+            {running ? "Matching..." : "Run AI Match"}
+          </button>
+        </div>
       </div>
 
       {/* Mode tabs */}
@@ -116,25 +188,67 @@ export default function MatchesPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {matches.map((m) => (
-            <div key={m.id}>
-              <OpportunityCard
-                opportunity={m.opportunity}
-                matchScore={Math.round(m.score)}
-              />
-              {m.summary && (
-                <div className="ml-5 mt-1 mb-2 text-xs text-muted italic">
-                  {m.summary}
-                </div>
-              )}
+        <>
+          <div className="space-y-3">
+            {matches.map((m) => (
+              <div key={m.id}>
+                <OpportunityCard
+                  opportunity={m.opportunity}
+                  matchScore={Math.round(m.score)}
+                  onNextStep={handleNextStep}
+                />
+                {/* Match reasoning accordion */}
+                {(m.summary || m.matchReasoning) && (
+                  <div className="ml-5 mt-1 mb-2">
+                    <button
+                      onClick={() => toggleReason(m.id)}
+                      className="inline-flex items-center gap-1 text-xs text-muted hover:text-foreground transition-colors"
+                    >
+                      {expandedReasons.has(m.id) ? (
+                        <ChevronUp className="w-3 h-3" />
+                      ) : (
+                        <ChevronDown className="w-3 h-3" />
+                      )}
+                      Why this is a good match
+                    </button>
+                    {expandedReasons.has(m.id) && (
+                      <div className="mt-1.5 pl-4 border-l-2 border-accent/30 text-xs text-muted leading-relaxed">
+                        {m.matchReasoning || m.summary}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Keep Searching / pagination controls */}
+          {hasMore && (
+            <div className="mt-6 flex justify-center">
+              <button
+                onClick={() => runMatch(false)}
+                disabled={running}
+                className="inline-flex items-center gap-2 px-5 py-3 bg-surface border border-border rounded-lg text-sm font-medium hover:bg-card hover:border-accent/40 transition-all disabled:opacity-50"
+              >
+                {running ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Search className="w-4 h-4" />
+                )}
+                {running ? "Scanning..." : "Keep Searching"}
+              </button>
             </div>
-          ))}
-        </div>
+          )}
+          {lastScanned > 0 && !hasMore && matches.length > 0 && (
+            <p className="text-center text-xs text-muted mt-4">
+              All available opportunities have been scanned.
+            </p>
+          )}
+        </>
       )}
       {showUpgrade && (
         <UpgradeModal
-          feature="matching"
+          feature={upgradeFeature}
           onClose={() => setShowUpgrade(false)}
         />
       )}

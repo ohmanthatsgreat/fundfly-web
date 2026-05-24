@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   FileText,
   Loader2,
@@ -60,11 +61,14 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function ApplicationsPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [apps, setApps] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [workspaceId, setWorkspaceId] = useState<number | null>(null);
+  const [workspaceView, setWorkspaceView] = useState<"workspace" | "submission">("workspace");
 
   const fetchApps = useCallback(async () => {
     try {
@@ -78,6 +82,17 @@ export default function ApplicationsPage() {
   useEffect(() => {
     fetchApps();
   }, [fetchApps]);
+
+  // Handle deep-link URL params: ?id=123&view=submission
+  useEffect(() => {
+    const idParam = searchParams.get("id");
+    const viewParam = searchParams.get("view");
+    if (idParam) {
+      setWorkspaceId(parseInt(idParam));
+      setWorkspaceView(viewParam === "submission" ? "submission" : "workspace");
+      router.replace("/app/applications", { scroll: false });
+    }
+  }, [searchParams, router]);
 
   async function updateStatus(id: number, status: string) {
     setSavingId(id);
@@ -124,9 +139,11 @@ export default function ApplicationsPage() {
       <div className="p-6 max-w-5xl">
         <ApplicationWorkspace
           applicationId={workspaceId}
+          initialView={workspaceView}
           onBack={() => {
             setWorkspaceId(null);
-            fetchApps(); // Refresh list in case status changed
+            setWorkspaceView("workspace");
+            fetchApps();
           }}
         />
       </div>

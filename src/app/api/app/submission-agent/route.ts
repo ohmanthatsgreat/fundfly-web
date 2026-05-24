@@ -4,9 +4,10 @@ import {
   applications,
   submissionPlans,
   applicationSections,
+  applicationDocuments,
 } from "@/lib/db";
 import { requireAuth, checkSubscription } from "@/lib/auth";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNotNull } from "drizzle-orm";
 
 const WORKER_URL = process.env.WORKER_URL || "http://localhost:3001";
 const WORKER_SECRET = process.env.WORKER_SECRET || "dev-secret";
@@ -94,6 +95,26 @@ export async function POST(request: NextRequest) {
         if (s.content) applicationContent[s.sectionKey] = s.content;
       }
 
+      // Get pre-attached documents for auto-upload
+      const attachedDocs = await db
+        .select()
+        .from(applicationDocuments)
+        .where(
+          and(
+            eq(applicationDocuments.applicationId, planRow.applicationId),
+            isNotNull(applicationDocuments.stepNumber),
+            isNotNull(applicationDocuments.artifactName)
+          )
+        );
+
+      // Build a mapping of artifact_name -> file_url for the worker
+      const preAttachedFiles: Record<string, string> = {};
+      for (const doc of attachedDocs) {
+        if (doc.artifactName && doc.fileUrl) {
+          preAttachedFiles[doc.artifactName] = doc.fileUrl;
+        }
+      }
+
       // Update plan status
       await db
         .update(submissionPlans)
@@ -107,6 +128,7 @@ export async function POST(request: NextRequest) {
           plan_id,
           plan,
           application_content: applicationContent,
+          pre_attached_files: preAttachedFiles,
         }),
       });
       const data = await res.json();

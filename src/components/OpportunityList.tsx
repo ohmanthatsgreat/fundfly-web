@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Search, SlidersHorizontal, Loader2, X } from "lucide-react";
 import OpportunityCard, { type Opportunity } from "./OpportunityCard";
 import OpportunityDetail from "./OpportunityDetail";
+import UpgradeModal from "./UpgradeModal";
 
 interface Props {
   endpoint?: string;
@@ -18,6 +20,7 @@ export default function OpportunityList({
   filters = {},
   showTitle = true,
 }: Props) {
+  const router = useRouter();
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -26,6 +29,9 @@ export default function OpportunityList({
   const [total, setTotal] = useState(0);
   const [sort, setSort] = useState("deadline_asc");
   const [selected, setSelected] = useState<Opportunity | null>(null);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [upgradeFeature, setUpgradeFeature] = useState<"checklist" | "matching">("checklist");
+  const [userPlan, setUserPlan] = useState<string | null>(null);
 
   // Advanced filters
   const [showFilters, setShowFilters] = useState(false);
@@ -84,13 +90,22 @@ export default function OpportunityList({
     } catch {}
   }, []);
 
+  const fetchSubscription = useCallback(async () => {
+    try {
+      const res = await fetch("/api/app/subscription");
+      const data = await res.json();
+      setUserPlan(data.subscription?.plan || null);
+    } catch {}
+  }, []);
+
   useEffect(() => {
     fetchOpportunities();
   }, [fetchOpportunities]);
 
   useEffect(() => {
     fetchSaved();
-  }, [fetchSaved]);
+    fetchSubscription();
+  }, [fetchSaved, fetchSubscription]);
 
   async function handleSave(id: string) {
     setSavedIds((prev) => new Set(prev).add(id));
@@ -121,6 +136,28 @@ export default function OpportunityList({
       body: JSON.stringify({ opportunityId: id }),
     });
     setSelected(null);
+    router.push("/app/applications");
+  }
+
+  async function handleNextStep(opp: Opportunity) {
+    const hasChecklist = userPlan && ["checklist", "auto_submission", "bundle"].includes(userPlan);
+    if (!hasChecklist) {
+      setUpgradeFeature("checklist");
+      setShowUpgrade(true);
+      return;
+    }
+    const res = await fetch("/api/app/applications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ opportunityId: opp.id }),
+    });
+    const data = await res.json();
+    const appId = data.application?.id;
+    if (!appId) return;
+
+    const hasAutoSub = ["auto_submission", "bundle"].includes(userPlan);
+    const view = hasAutoSub ? "submission" : "workspace";
+    router.push(`/app/applications?id=${appId}&view=${view}`);
   }
 
   const totalPages = Math.ceil(total / limit);
@@ -287,6 +324,7 @@ export default function OpportunityList({
                 onSave={handleSave}
                 onUnsave={handleUnsave}
                 onSelect={setSelected}
+                onNextStep={handleNextStep}
               />
             ))}
           </div>
@@ -325,6 +363,13 @@ export default function OpportunityList({
           onSave={handleSave}
           onUnsave={handleUnsave}
           onStartApplication={handleStartApplication}
+        />
+      )}
+
+      {showUpgrade && (
+        <UpgradeModal
+          feature={upgradeFeature}
+          onClose={() => setShowUpgrade(false)}
         />
       )}
     </div>

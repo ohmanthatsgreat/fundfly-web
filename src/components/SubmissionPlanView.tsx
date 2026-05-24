@@ -17,6 +17,10 @@ import {
   ArrowRight,
   ShieldCheck,
   FileSearch,
+  Paperclip,
+  Upload,
+  X,
+  FileText,
 } from "lucide-react";
 import UpgradeModal from "./UpgradeModal";
 
@@ -82,6 +86,17 @@ type AgentEvent = {
   requirements?: DiscoveredRequirement[];
 };
 
+type StepAttachment = {
+  id: number;
+  name: string;
+  filename: string;
+  fileUrl: string | null;
+  stepNumber: number;
+  artifactName: string;
+  source: string;
+  mimeType: string;
+};
+
 export default function SubmissionPlanView({
   applicationId,
   onBack,
@@ -121,6 +136,9 @@ export default function SubmissionPlanView({
   );
   const logsEndRef = useRef<HTMLDivElement>(null);
   const [showUpgrade, setShowUpgrade] = useState<"checklist" | "auto_submission" | null>(null);
+  const [stepAttachments, setStepAttachments] = useState<StepAttachment[]>([]);
+  const [uploadingFor, setUploadingFor] = useState<{ step: number; artifact: string } | null>(null);
+  const [stepsReady, setStepsReady] = useState<Record<number, boolean>>({});
 
   const fetchPlan = useCallback(async () => {
     try {
@@ -133,19 +151,109 @@ export default function SubmissionPlanView({
         setPlanId(data.plan.id);
         setPlanStatus(data.plan.status);
         setArtifacts(data.plan.artifacts || {});
+        if (data.plan.artifacts?._steps_ready) {
+          try {
+            setStepsReady(JSON.parse(data.plan.artifacts._steps_ready));
+          } catch {}
+        }
       }
+    } catch {}
+  }, [applicationId]);
+
+  const fetchAttachments = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `/api/app/step-attachments?application_id=${applicationId}`
+      );
+      const data = await res.json();
+      setStepAttachments(
+        (data.documents || [])
+          .filter((d: StepAttachment) => d.stepNumber && d.artifactName)
+      );
     } catch {}
   }, [applicationId]);
 
   useEffect(() => {
     fetchPlan();
-  }, [fetchPlan]);
+    fetchAttachments();
+  }, [fetchPlan, fetchAttachments]);
 
   useEffect(() => {
     if (logsEndRef.current) {
       logsEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [agentLogs]);
+
+  async function handleAttachFile(
+    stepNumber: number,
+    artifactName: string,
+    file: File
+  ) {
+    setUploadingFor({ step: stepNumber, artifact: artifactName });
+
+    // For now, store file as a data URL (in production you'd upload to S3/Vercel Blob)
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const fileUrl = reader.result as string;
+      try {
+        const res = await fetch("/api/app/step-attachments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            application_id: applicationId,
+            step_number: stepNumber,
+            artifact_name: artifactName,
+            name: artifactName,
+            filename: file.name,
+            file_url: fileUrl,
+            mime_type: file.type || "application/pdf",
+            file_size: file.size,
+            source: "upload",
+          }),
+        });
+        const data = await res.json();
+        if (data.document) {
+          setStepAttachments((prev) => [...prev, data.document]);
+        }
+      } catch {}
+      setUploadingFor(null);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function handleRemoveAttachment(docId: number) {
+    setStepAttachments((prev) => prev.filter((d) => d.id !== docId));
+    await fetch("/api/app/step-attachments", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        document_id: docId,
+        application_id: applicationId,
+      }),
+    });
+  }
+
+  function getAttachmentForStep(stepNumber: number, artifactName: string) {
+    return stepAttachments.find(
+      (d) => d.stepNumber === stepNumber && d.artifactName === artifactName
+    );
+  }
+
+  async function toggleStepReady(stepNumber: number) {
+    const updated = { ...stepsReady, [stepNumber]: !stepsReady[stepNumber] };
+    setStepsReady(updated);
+    // Persist to plan artifacts
+    if (planId) {
+      await fetch("/api/app/submission-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          application_id: applicationId,
+          update_artifacts: { _steps_ready: JSON.stringify(updated) },
+        }),
+      }).catch(() => {});
+    }
+  }
 
   const handleGeneratePlan = async () => {
     setGenerating(true);
@@ -694,16 +802,33 @@ export default function SubmissionPlanView({
           const status = stepStatuses[step.step_number] || "pending";
           const message = stepMessages[step.step_number];
           const isExpanded = expandedSteps.has(step.step_number);
+          const isReady = stepsReady[step.step_number] || status === "completed";
 
           return (
             <div
               key={step.step_number}
-              className="bg-card border border-border rounded-xl overflow-hidden hover:border-accent/15 transition-all duration-200"
+              className={`bg-card border rounded-xl overflow-hidden hover:border-accent/15 transition-all duration-200 ${
+                isReady ? "border-emerald-200 dark:border-emerald-500/20" : "border-border"
+              }`}
             >
               <div
                 className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-surface/50 transition-colors"
                 onClick={() => toggleStep(step.step_number)}
               >
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleStepReady(step.step_number);
+                  }}
+                  className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
+                    isReady
+                      ? "bg-emerald-500 border-emerald-500 text-white"
+                      : "border-border hover:border-accent/50"
+                  }`}
+                  title={isReady ? "Mark as not ready" : "Mark as ready"}
+                >
+                  {isReady && <CheckCircle size={12} />}
+                </button>
                 {stepStatusIcon(status)}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -747,24 +872,27 @@ export default function SubmissionPlanView({
                           Needs:
                         </span>
                         <div className="flex flex-wrap gap-1 mt-1">
-                          {step.artifacts_needed.map((a) => (
-                            <span
-                              key={a}
-                              className={`px-2 py-0.5 rounded-full border ${
-                                artifacts[a]
-                                  ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/20"
-                                  : "bg-surface text-muted border-border"
-                              }`}
-                            >
-                              {a}{" "}
-                              {artifacts[a] && (
-                                <CheckCircle
-                                  size={10}
-                                  className="inline"
-                                />
-                              )}
-                            </span>
-                          ))}
+                          {step.artifacts_needed.map((a) => {
+                            const attachment = getAttachmentForStep(step.step_number, a);
+                            return (
+                              <span
+                                key={a}
+                                className={`px-2 py-0.5 rounded-full border ${
+                                  artifacts[a] || attachment
+                                    ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/20"
+                                    : "bg-surface text-muted border-border"
+                                }`}
+                              >
+                                {a}{" "}
+                                {(artifacts[a] || attachment) && (
+                                  <CheckCircle
+                                    size={10}
+                                    className="inline"
+                                  />
+                                )}
+                              </span>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -791,6 +919,94 @@ export default function SubmissionPlanView({
                       </div>
                     )}
                   </div>
+
+                  {/* Document attachment slots for auto_submission users */}
+                  {step.artifacts_needed.length > 0 && planStatus !== "running" && (
+                    <div className="space-y-2 pt-1">
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-muted">
+                        <Paperclip size={12} />
+                        Attach documents for this step
+                      </div>
+                      {step.artifacts_needed.map((artifactName) => {
+                        const attachment = getAttachmentForStep(
+                          step.step_number,
+                          artifactName
+                        );
+                        const isUploading =
+                          uploadingFor?.step === step.step_number &&
+                          uploadingFor?.artifact === artifactName;
+
+                        return (
+                          <div
+                            key={artifactName}
+                            className="flex items-center gap-2 p-2 rounded-lg border border-border bg-surface/50"
+                          >
+                            {attachment ? (
+                              <>
+                                <FileText
+                                  size={14}
+                                  className="text-emerald-600 dark:text-emerald-400 shrink-0"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-medium truncate">
+                                    {attachment.filename}
+                                  </p>
+                                  <p className="text-[10px] text-muted">
+                                    {artifactName}
+                                  </p>
+                                </div>
+                                <button
+                                  onClick={() =>
+                                    handleRemoveAttachment(attachment.id)
+                                  }
+                                  className="p-1 rounded hover:bg-card text-muted hover:text-danger transition-colors"
+                                  title="Remove attachment"
+                                >
+                                  <X size={12} />
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <Upload
+                                  size={14}
+                                  className="text-muted shrink-0"
+                                />
+                                <span className="flex-1 text-xs text-muted">
+                                  {artifactName}
+                                </span>
+                                {isUploading ? (
+                                  <Loader2
+                                    size={14}
+                                    className="animate-spin text-accent"
+                                  />
+                                ) : (
+                                  <label className="text-[11px] font-medium text-accent cursor-pointer hover:text-accent/80 transition-colors">
+                                    Upload
+                                    <input
+                                      type="file"
+                                      className="hidden"
+                                      accept=".pdf,.doc,.docx,.txt,.xlsx,.csv"
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                          handleAttachFile(
+                                            step.step_number,
+                                            artifactName,
+                                            file
+                                          );
+                                        }
+                                        e.target.value = "";
+                                      }}
+                                    />
+                                  </label>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {step.notes && (
                     <p className="text-xs text-muted italic">

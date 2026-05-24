@@ -8,12 +8,13 @@ import {
   personalProfiles,
   dismissedOpportunities,
 } from "@/lib/db";
-import { eq, notInArray } from "drizzle-orm";
+import { eq, and, notInArray } from "drizzle-orm";
 import { matchOpportunities, matchPersonalOpportunities } from "@/lib/ai";
 
 export async function POST(request: NextRequest) {
   const userId = await requireAuth();
-  const { mode = "org" } = await request.json();
+  const { mode = "org", offset = 0, reset = false } = await request.json();
+  const BATCH_LIMIT = 500;
 
   // Check subscription
   const sub = await checkSubscription(userId, "matching");
@@ -61,7 +62,24 @@ export async function POST(request: NextRequest) {
     .where(eq(dismissedOpportunities.userId, userId));
   const dismissedIds = dismissed.map((d) => d.id);
 
-  // Load opportunities to score
+  // Also exclude already-matched IDs (unless resetting)
+  let matchedIds: string[] = [];
+  if (!reset) {
+    const existing = await db
+      .select({ id: aiMatches.opportunityId })
+      .from(aiMatches)
+      .where(
+        and(
+          eq(aiMatches.userId, userId),
+          eq(aiMatches.matchMode, mode)
+        )
+      );
+    matchedIds = existing.map((e) => e.id);
+  }
+
+  const excludeIds = [...new Set([...dismissedIds, ...matchedIds])];
+
+  // Load opportunities to score (paginated batch)
   const allOpps = await db
     .select({
       id: opportunities.id,
@@ -77,11 +95,24 @@ export async function POST(request: NextRequest) {
     })
     .from(opportunities)
     .where(
-      dismissedIds.length > 0
-        ? notInArray(opportunities.id, dismissedIds)
+      excludeIds.length > 0
+        ? notInArray(opportunities.id, excludeIds)
         : undefined
     )
-    .limit(500);
+    .offset(reset ? 0 : offset)
+    .limit(BATCH_LIMIT);
+
+  const hasMore = allOpps.length === BATCH_LIMIT;
+
+  if (allOpps.length === 0) {
+    return Response.json({
+      success: true,
+      matchesProcessed: 0,
+      hasMore: false,
+      nextOffset: 0,
+      message: "No more opportunities to scan.",
+    });
+  }
 
   // Run AI matching using the library
   try {
@@ -117,7 +148,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return Response.json({ success: true, matchesProcessed: totalMatches });
+    return Response.json({
+      success: true,
+      matchesProcessed: totalMatches,
+      scanned: allOpps.length,
+      hasMore,
+      nextOffset: (reset ? 0 : offset) + BATCH_LIMIT,
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "AI matching failed";
     console.error("AI matching error:", err);

@@ -223,8 +223,10 @@ export const applicationDocuments = pgTable(
     fileUrl: text("file_url"),
     fileSize: integer("file_size").default(0),
     mimeType: text("mime_type").default("application/pdf"),
-    source: text("source").default("upload"),
+    source: text("source").default("upload"), // 'upload' | 'ai_generated' | 'linked_section'
     status: text("status").default("pending"),
+    stepNumber: integer("step_number"),
+    artifactName: text("artifact_name"),
     aiGeneratedContent: text("ai_generated_content"),
     generationPrompt: text("generation_prompt"),
     notes: text("notes"),

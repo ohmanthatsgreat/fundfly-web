@@ -1,6 +1,6 @@
 "use client";
 
-import { Bookmark, BookmarkCheck, ExternalLink } from "lucide-react";
+import { Bookmark, BookmarkCheck, ExternalLink, ArrowRight } from "lucide-react";
 import { format, parseISO, isPast } from "date-fns";
 
 export interface Opportunity {
@@ -26,6 +26,7 @@ interface Props {
   onSave?: (id: string) => void;
   onUnsave?: (id: string) => void;
   onSelect?: (opp: Opportunity) => void;
+  onNextStep?: (opp: Opportunity) => void;
 }
 
 const typeBadgeColors: Record<string, string> = {
@@ -81,6 +82,7 @@ export default function OpportunityCard({
   onSave,
   onUnsave,
   onSelect,
+  onNextStep,
 }: Props) {
   const expired = isExpired(opp.deadline);
 
@@ -149,6 +151,19 @@ export default function OpportunityCard({
 
         {/* Actions */}
         <div className="flex items-center gap-1 shrink-0">
+          {onNextStep && !expired && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onNextStep(opp);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-accent bg-accent/10 border border-accent/30 rounded-lg hover:bg-accent/20 transition-colors"
+              title="Start application"
+            >
+              Apply
+              <ArrowRight className="w-3 h-3" />
+            </button>
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation();

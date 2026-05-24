@@ -47,10 +47,22 @@ export async function POST(request: NextRequest) {
   const userId = await requireAuth();
   const { opportunityId } = await request.json();
 
+  // Return existing application if one already exists for this opportunity
+  const [existing] = await db
+    .select()
+    .from(applications)
+    .where(
+      and(eq(applications.userId, userId), eq(applications.opportunityId, opportunityId))
+    )
+    .limit(1);
+
+  if (existing) {
+    return Response.json({ application: existing });
+  }
+
   const [app] = await db
     .insert(applications)
     .values({ userId, opportunityId, status: "draft" })
-    .onConflictDoNothing()
     .returning();
 
   return Response.json({ application: app });
