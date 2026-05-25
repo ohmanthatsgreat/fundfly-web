@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import Anthropic from "@anthropic-ai/sdk";
+import { recordCallCost } from "@/lib/ai-cost";
 
 const FIELD_CONTEXT: Record<string, string> = {
   missionStatement: "a nonprofit/business mission statement for grant applications",
@@ -12,7 +13,7 @@ const FIELD_CONTEXT: Record<string, string> = {
 };
 
 export async function POST(request: NextRequest) {
-  await requireAuth();
+  const userId = await requireAuth();
 
   const { field, value } = await request.json();
   if (!field || !value) {
@@ -23,8 +24,9 @@ export async function POST(request: NextRequest) {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
     const context = FIELD_CONTEXT[field] || "professional content for a grant application profile";
 
+    const model = "claude-sonnet-4-6";
     const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
+      model,
       max_tokens: 1024,
       messages: [
         {
@@ -36,6 +38,7 @@ ${value}`,
         },
       ],
     });
+    await recordCallCost(userId, model, response);
 
     const text = response.content[0].type === "text" ? response.content[0].text : value;
     return Response.json({ enhanced: text.trim() });

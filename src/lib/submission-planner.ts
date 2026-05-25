@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { recordCallCost } from "@/lib/ai-cost";
 
 function getClient(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -76,7 +77,8 @@ export type SubmissionPlan = {
 
 export async function researchSubmissionPlan(
   profile: ProfileLike,
-  opportunity: OppLike
+  opportunity: OppLike,
+  userId: string | null = null
 ): Promise<SubmissionPlan> {
   const profileParts: string[] = [];
   if (profile.orgName) profileParts.push(`Organization: ${profile.orgName}`);
@@ -107,8 +109,9 @@ export async function researchSubmissionPlan(
     .filter(Boolean)
     .join("\n");
 
+  const model = "claude-sonnet-4-6";
   const response = await getClient().messages.create({
-    model: "claude-sonnet-4-6",
+    model,
     max_tokens: 6000,
     messages: [
       {
@@ -166,6 +169,7 @@ Return ONLY the JSON object.`,
       },
     ],
   });
+  await recordCallCost(userId, model, response);
 
   let text = "";
   for (const block of response.content) {

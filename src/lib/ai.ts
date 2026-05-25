@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { recordCallCost } from "@/lib/ai-cost";
 
 function getClient(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -106,7 +107,8 @@ export type MatchResult = {
 export async function matchOpportunities(
   profile: ProfileLike,
   opportunities: OppLike[],
-  batchSize = 20
+  batchSize = 20,
+  userId: string | null = null
 ): Promise<MatchResult[]> {
   const orgSummary = buildOrgSummary(profile);
   if (!orgSummary.includes("Mission") && !orgSummary.includes("Products") && !orgSummary.includes("Expertise")) {
@@ -119,8 +121,9 @@ export async function matchOpportunities(
     const batch = opportunities.slice(i, i + batchSize);
     const oppList = batch.map((o, idx) => `--- Opportunity ${idx + 1} ---\n${buildOpportunitySummary(o)}`).join("\n\n");
 
+    const model = "claude-sonnet-4-6";
     const response = await getClient().messages.create({
-      model: "claude-sonnet-4-6",
+      model,
       max_tokens: 4096,
       messages: [
         {
@@ -143,6 +146,7 @@ Only include opportunities with a score of 40 or higher. Respond with ONLY the J
         },
       ],
     });
+    await recordCallCost(userId, model, response);
 
     const text = response.content[0].type === "text" ? response.content[0].text : "";
     try {
@@ -162,7 +166,8 @@ Only include opportunities with a score of 40 or higher. Respond with ONLY the J
 export async function matchPersonalOpportunities(
   profile: ProfileLike,
   opportunities: OppLike[],
-  batchSize = 20
+  batchSize = 20,
+  userId: string | null = null
 ): Promise<MatchResult[]> {
   const personalSummary = buildPersonalSummary(profile);
   if (!personalSummary.includes("Skills") && !personalSummary.includes("Interests") && !personalSummary.includes("Education")) {
@@ -175,8 +180,9 @@ export async function matchPersonalOpportunities(
     const batch = opportunities.slice(i, i + batchSize);
     const oppList = batch.map((o, idx) => `--- Opportunity ${idx + 1} ---\n${buildOpportunitySummary(o)}`).join("\n\n");
 
+    const model = "claude-sonnet-4-6";
     const response = await getClient().messages.create({
-      model: "claude-sonnet-4-6",
+      model,
       max_tokens: 4096,
       messages: [
         {
@@ -199,6 +205,7 @@ Only include opportunities with a score of 40 or higher. Respond with ONLY the J
         },
       ],
     });
+    await recordCallCost(userId, model, response);
 
     const text = response.content[0].type === "text" ? response.content[0].text : "";
     try {
@@ -265,7 +272,8 @@ export type SectionResult = {
 export async function generateApplicationSections(
   profile: ProfileLike,
   opportunity: OppLike,
-  mode: "org" | "personal" = "org"
+  mode: "org" | "personal" = "org",
+  userId: string | null = null
 ): Promise<SectionResult[]> {
   const isPersonal = mode === "personal";
   const profileSummary = isPersonal
@@ -287,8 +295,9 @@ export async function generateApplicationSections(
     ? "Write in first person, with a personal and authentic voice. Use specific details from the applicant's profile — their bio, mission, project goals, and past achievements. Make it feel human, not corporate."
     : "Write in a professional, compelling tone appropriate for federal grant reviewers. Use specific details from the organization profile.";
 
+  const model = "claude-sonnet-4-6";
   const response = await getClient().messages.create({
-    model: "claude-sonnet-4-6",
+    model,
     max_tokens: 12000,
     messages: [
       {
@@ -310,6 +319,7 @@ Respond with ONLY the JSON array, no other text.`,
       },
     ],
   });
+  await recordCallCost(userId, model, response);
 
   let text = "";
   for (const block of response.content) {
@@ -333,7 +343,8 @@ export async function generateSection(
   opportunity: OppLike,
   sectionPrompt: string,
   existingContent?: string,
-  mode: "org" | "personal" = "org"
+  mode: "org" | "personal" = "org",
+  userId: string | null = null
 ): Promise<string> {
   const isPersonal = mode === "personal";
   const profileSummary = isPersonal
@@ -355,8 +366,9 @@ export async function generateSection(
     ? "Write in first person, with a personal and authentic voice."
     : "Write in a professional, compelling tone.";
 
+  const model = "claude-sonnet-4-6";
   const response = await getClient().messages.create({
-    model: "claude-sonnet-4-6",
+    model,
     max_tokens: 2048,
     messages: [
       {
@@ -375,6 +387,7 @@ ${voiceNote} Use markdown formatting. Return ONLY the section content, no other 
       },
     ],
   });
+  await recordCallCost(userId, model, response);
 
   let text = "";
   for (const block of response.content) {

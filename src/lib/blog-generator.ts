@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { db, blogPosts } from "@/lib/db";
 import { eq, desc, sql } from "drizzle-orm";
+import { recordCallCost } from "@/lib/ai-cost";
 
 function getClient(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -198,8 +199,9 @@ export async function generateBlogPost(
   });
   const currentYear = today.getFullYear();
 
+  const model = "claude-sonnet-4-6";
   const response = await getClient().messages.create({
-    model: "claude-sonnet-4-6",
+    model,
     max_tokens: 4096,
     messages: [
       {
@@ -242,6 +244,7 @@ Respond with ONLY the JSON object, no other text.`,
       },
     ],
   });
+  await recordCallCost(null, model, response);
 
   let text = "";
   for (const block of response.content) {

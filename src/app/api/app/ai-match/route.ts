@@ -118,8 +118,8 @@ export async function POST(request: NextRequest) {
   try {
     const matches =
       mode === "personal"
-        ? await matchPersonalOpportunities(profile, allOpps)
-        : await matchOpportunities(profile, allOpps);
+        ? await matchPersonalOpportunities(profile, allOpps, 20, userId)
+        : await matchOpportunities(profile, allOpps, 20, userId);
 
     // Save results to DB
     let totalMatches = 0;

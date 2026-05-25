@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const plan = await researchSubmissionPlan(profile, opp);
+    const plan = await researchSubmissionPlan(profile, opp, userId);
 
     // Upsert the plan
     const [existing] = await db

@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import crypto from "node:crypto";
 import { db, opportunities } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { recordCallCost } from "@/lib/ai-cost";
 
 /**
  * AI-classify the audience of an opportunity as "business" | "personal" | "both".
@@ -86,6 +87,7 @@ No prose, just JSON.`;
     max_tokens: 800,
     messages: [{ role: "user", content: prompt }],
   });
+  await recordCallCost(null, HAIKU_MODEL, response);
 
   let text = "";
   for (const block of response.content) {

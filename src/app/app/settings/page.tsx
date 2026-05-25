@@ -1,7 +1,30 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, CreditCard, ExternalLink, RotateCcw } from "lucide-react";
+import {
+  Loader2,
+  CreditCard,
+  ExternalLink,
+  RotateCcw,
+  Zap,
+  AlertTriangle,
+} from "lucide-react";
+
+type AiUsage = {
+  costCents: number;
+  capCents: number;
+  creditsCents: number;
+  requestCount: number;
+  percentUsed: number;
+  atWarning: boolean;
+  atLimit: boolean;
+  periodStart: string;
+  periodEnd: string | null;
+};
+
+function fmtUsd(cents: number) {
+  return `$${(cents / 100).toFixed(2)}`;
+}
 
 export default function SettingsPage() {
   const [subscription, setSubscription] = useState<{
@@ -9,15 +32,21 @@ export default function SettingsPage() {
     status: string;
     currentPeriodEnd: string;
   } | null>(null);
+  const [usage, setUsage] = useState<AiUsage | null>(null);
   const [loading, setLoading] = useState(true);
   const [portalLoading, setPortalLoading] = useState(false);
 
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch("/api/app/subscription");
-        const data = await res.json();
-        if (data.subscription) setSubscription(data.subscription);
+        const [subRes, usageRes] = await Promise.all([
+          fetch("/api/app/subscription"),
+          fetch("/api/app/ai-usage"),
+        ]);
+        const subData = await subRes.json();
+        if (subData.subscription) setSubscription(subData.subscription);
+        const usageData = await usageRes.json();
+        if (usageData.capCents) setUsage(usageData);
       } catch {}
       setLoading(false);
     }
@@ -101,6 +130,139 @@ export default function SettingsPage() {
           </div>
         )}
       </div>
+
+      {/* AI Usage */}
+      {usage && (
+        <div className="bg-card border border-border rounded-xl p-6 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Zap className="w-5 h-5 text-accent" />
+            <h2 className="font-semibold">AI Usage This Period</h2>
+          </div>
+
+          {/* Progress bar */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between text-sm mb-1.5">
+              <span className="text-muted">
+                {fmtUsd(usage.costCents)} of {fmtUsd(usage.capCents)} used
+              </span>
+              <span
+                className={`font-medium ${
+                  usage.atLimit
+                    ? "text-red-600 dark:text-red-400"
+                    : usage.atWarning
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-foreground/70"
+                }`}
+              >
+                {usage.percentUsed}%
+              </span>
+            </div>
+            <div className="h-2 bg-surface rounded-full overflow-hidden">
+              <div
+                className={`h-full transition-all ${
+                  usage.atLimit
+                    ? "bg-red-500"
+                    : usage.atWarning
+                      ? "bg-amber-500"
+                      : "bg-accent"
+                }`}
+                style={{ width: `${usage.percentUsed}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Stats grid */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm mb-4">
+            <div>
+              <div className="text-xs text-muted uppercase tracking-wider mb-1">
+                Used
+              </div>
+              <div className="font-medium">{fmtUsd(usage.costCents)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted uppercase tracking-wider mb-1">
+                Monthly Cap
+              </div>
+              <div className="font-medium">{fmtUsd(usage.capCents)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted uppercase tracking-wider mb-1">
+                Extra Credits
+              </div>
+              <div className="font-medium">{fmtUsd(usage.creditsCents)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted uppercase tracking-wider mb-1">
+                AI Calls
+              </div>
+              <div className="font-medium">{usage.requestCount}</div>
+            </div>
+            {usage.periodEnd && (
+              <div className="col-span-2">
+                <div className="text-xs text-muted uppercase tracking-wider mb-1">
+                  Resets
+                </div>
+                <div className="font-medium">
+                  {new Date(usage.periodEnd).toLocaleDateString("en-US", {
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Warning / at-limit banner */}
+          {usage.atLimit && (
+            <div className="flex items-start gap-2 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg p-3 text-sm">
+              <AlertTriangle
+                size={16}
+                className="text-red-600 dark:text-red-400 shrink-0 mt-0.5"
+              />
+              <div>
+                <p className="font-medium text-red-900 dark:text-red-200">
+                  AI cap reached
+                </p>
+                <p className="text-red-900/80 dark:text-red-200/80 text-xs mt-0.5">
+                  Auto-submission AI features are paused for the rest of this
+                  billing period. Purchase additional credits to continue.
+                </p>
+              </div>
+            </div>
+          )}
+          {usage.atWarning && !usage.atLimit && (
+            <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-lg p-3 text-sm">
+              <AlertTriangle
+                size={16}
+                className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5"
+              />
+              <div>
+                <p className="font-medium text-amber-900 dark:text-amber-200">
+                  Approaching monthly cap
+                </p>
+                <p className="text-amber-900/80 dark:text-amber-200/80 text-xs mt-0.5">
+                  You&apos;ve used over 80% of your monthly AI budget. Consider
+                  purchasing additional credits before you hit the cap.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <p className="text-xs text-muted mt-4">
+            Cap applies to auto-submission AI features. Cost is computed from
+            actual Anthropic API usage at our published model rates. Credit
+            purchase coming soon — email{" "}
+            <a
+              href="mailto:support@fundfly.app"
+              className="text-accent hover:underline"
+            >
+              support@fundfly.app
+            </a>{" "}
+            if you need additional credits now.
+          </p>
+        </div>
+      )}
 
       {/* Guided Tour */}
       <div className="bg-card border border-border rounded-xl p-6 mb-6">

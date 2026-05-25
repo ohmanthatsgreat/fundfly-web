@@ -123,7 +123,12 @@ export async function POST(request: NextRequest) {
 
   try {
     if (action === "generate_all") {
-      const sections = await generateApplicationSections(profile, opp, mode);
+      const sections = await generateApplicationSections(
+        profile,
+        opp,
+        mode,
+        userId
+      );
 
       // Upsert all sections
       for (let i = 0; i < sections.length; i++) {
@@ -204,7 +209,8 @@ export async function POST(request: NextRequest) {
         opp,
         sectionDef.prompt,
         existing?.content || undefined,
-        mode
+        mode,
+        userId
       );
 
       await db

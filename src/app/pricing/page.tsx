@@ -77,7 +77,7 @@ const PLANS: PlanOption[] = [
       "Intelligent form filling",
       "Human-in-the-loop review",
       "Multi-portal support",
-      "$150/mo in AI credits included",
+      "$100/mo in AI credits included",
       "Purchase additional credits as needed",
     ],
   },

@@ -20,8 +20,12 @@ const PLAN_FEATURES: Record<Plan, Feature[]> = {
   bundle: ["matching", "checklist", "auto_submission"], // legacy alias
 };
 
-/** Auto-submission monthly AI cost cap in cents ($150 = 15000 cents) */
-const AUTO_SUB_CAP_CENTS = 15000;
+/**
+ * Auto-submission monthly AI cost cap in cents.
+ * $100 = 10000 cents. Lowered from $150 on 2026-05-24 to leave headroom
+ * for affiliate commissions on the lower $399 tier.
+ */
+const AUTO_SUB_CAP_CENTS = 10000;
 
 export async function requireAuth() {
   const { userId } = await auth();
