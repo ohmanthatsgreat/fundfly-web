@@ -274,7 +274,7 @@ export async function GET(request: NextRequest) {
     grantsGov: 0,
     sbirGov: 0,
     samGov: 0,
-    zeffy: { total: 0, inserted: 0, categories: [] as string[] },
+    zeffy: { total: 0, inserted: 0, categories: [] as string[], classified: 0 },
     zeffyEnrichment: { enriched: 0, failed: 0 },
     errors: [] as string[],
   };
@@ -316,7 +316,7 @@ export async function GET(request: NextRequest) {
   const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
   console.log(
-    `[cron/sync] Completed in ${duration}s — Grants.gov: ${results.grantsGov}, SBIR: ${results.sbirGov}, SAM.gov: ${results.samGov}, Zeffy: ${results.zeffy.inserted} new (${results.zeffy.categories.join(", ")}), Enriched: ${results.zeffyEnrichment.enriched}, Total: ${count}`
+    `[cron/sync] Completed in ${duration}s — Grants.gov: ${results.grantsGov}, SBIR: ${results.sbirGov}, SAM.gov: ${results.samGov}, Zeffy: ${results.zeffy.inserted} new (${results.zeffy.categories.join(", ")}), Audience-classified: ${results.zeffy.classified}, Enriched: ${results.zeffyEnrichment.enriched}, Total: ${count}`
   );
 
   return Response.json({

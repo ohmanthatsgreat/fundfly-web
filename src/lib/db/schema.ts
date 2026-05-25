@@ -79,6 +79,10 @@ export const opportunities = pgTable(
     cfdaNumber: text("cfda_number"),
     status: text("status").default("open"),
     audience: text("audience").default("business"), // 'business' | 'personal' | 'both'
+    // SHA256 of (title + description + categories) at last AI classification.
+    // If the source content matches, we skip re-classifying. Only meaningful
+    // for sources where audience is AI-classified (Zeffy today).
+    audienceClassifiedHash: text("audience_classified_hash"),
     location: text("location"),
     applicantTypes: text("applicant_types"),
     categories: text("categories"),

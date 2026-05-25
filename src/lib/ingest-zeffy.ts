@@ -1,5 +1,6 @@
 import { db, opportunities, userSettings } from "@/lib/db";
 import { eq, and, isNull, isNotNull, asc, sql } from "drizzle-orm";
+import { classifyAudienceForSource } from "@/lib/classify-audience";
 
 const ALGOLIA_APP_ID = "22BX5DVBCL";
 const ALGOLIA_API_KEY = "a0a1c9e5621d1c3dc6329a2381220782";
@@ -358,6 +359,7 @@ export async function syncZeffy(): Promise<{
   total: number;
   inserted: number;
   categories: string[];
+  classified: number;
 }> {
   let startIndex = await getSyncIndex();
   if (startIndex >= ALL_CATEGORIES.length) startIndex = 0;
@@ -379,10 +381,22 @@ export async function syncZeffy(): Promise<{
   const nextIndex = endIndex >= ALL_CATEGORIES.length ? 0 : endIndex;
   await setSyncIndex(nextIndex);
 
+  // AI-classify audience for any new or changed rows in this batch.
+  // Cached by content hash, so this is cheap on subsequent runs.
+  // Capped at 500/run to bound Haiku cost on big initial sweeps.
+  let classified = 0;
+  try {
+    const result = await classifyAudienceForSource("zeffy", { limit: 500 });
+    classified = result.classified;
+  } catch (err) {
+    console.error("Zeffy audience classification failed:", err);
+  }
+
   return {
     total: totalHits,
     inserted: totalInserted,
     categories: batch,
+    classified,
   };
 }
 
