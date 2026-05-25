@@ -121,7 +121,8 @@ export async function POST(request: NextRequest) {
         .set({ status: "running", currentStep: 0, updatedAt: new Date() })
         .where(eq(submissionPlans.id, plan_id));
 
-      // Start agent on worker
+      // Start agent on worker — pass userId so worker can fetch saved
+      // portal credentials at runtime via the internal API.
       const res = await workerFetch("/agent/start", {
         method: "POST",
         body: JSON.stringify({
@@ -129,6 +130,7 @@ export async function POST(request: NextRequest) {
           plan,
           application_content: applicationContent,
           pre_attached_files: preAttachedFiles,
+          user_id: userId,
         }),
       });
       const data = await res.json();
@@ -136,9 +138,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "resume") {
+      // resume_payload carries credentials/MFA codes from the runtime prompt
+      // forms. Never logged on the web side; relayed directly to worker.
       const res = await workerFetch("/agent/resume", {
         method: "POST",
-        body: JSON.stringify({ plan_id }),
+        body: JSON.stringify({
+          plan_id,
+          resume_payload: body.resume_payload,
+        }),
       });
       const data = await res.json();
       return Response.json(data);

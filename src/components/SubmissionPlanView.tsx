@@ -23,6 +23,7 @@ import {
   FileText,
 } from "lucide-react";
 import UpgradeModal from "./UpgradeModal";
+import PortalCredentialsPanel from "./PortalCredentialsPanel";
 
 type SubmissionStep = {
   step_number: number;
@@ -367,6 +368,33 @@ export default function SubmissionPlanView({
             url: data.url,
           });
           break;
+        case "waiting_credentials":
+          if (data.step) {
+            setStepStatuses((prev) => ({
+              ...prev,
+              [data.step!.step_number]: "waiting_login",
+            }));
+          }
+          setWaitingInfo({
+            type: "credentials",
+            portal: data.portal,
+            url: data.url,
+            description: data.description,
+          });
+          break;
+        case "waiting_mfa":
+          if (data.step) {
+            setStepStatuses((prev) => ({
+              ...prev,
+              [data.step!.step_number]: "waiting_login",
+            }));
+          }
+          setWaitingInfo({
+            type: "mfa",
+            portal: data.portal,
+            description: data.description,
+          });
+          break;
         case "waiting_approval":
           if (data.step) {
             setStepStatuses((prev) => ({
@@ -411,13 +439,17 @@ export default function SubmissionPlanView({
     };
   };
 
-  const handleResume = async () => {
+  const handleResume = async (payload?: Record<string, unknown>) => {
     if (!planId) return;
     setWaitingInfo(null);
     await fetch("/api/app/submission-agent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "resume", plan_id: planId }),
+      body: JSON.stringify({
+        action: "resume",
+        plan_id: planId,
+        resume_payload: payload,
+      }),
     });
   };
 
@@ -635,6 +667,17 @@ export default function SubmissionPlanView({
         )}
       </div>
 
+      {/* Portal credentials — pre-flight */}
+      <PortalCredentialsPanel
+        requiredPortals={[
+          ...planData.portals_involved,
+          ...planData.steps
+            .filter((s) => s.requires_login && s.portal)
+            .map((s) => s.portal),
+          ...discoveries.map((d) => d.source_portal),
+        ]}
+      />
+
       {/* Prompt to generate sections if missing */}
       {!hasSections && !isRunning && !isComplete && (
         <div className="bg-accent/5 border border-accent/20 rounded-xl p-5 space-y-3">
@@ -680,58 +723,11 @@ export default function SubmissionPlanView({
 
       {/* Waiting for user action */}
       {waitingInfo && (
-        <div className="bg-amber-100 border border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/20 rounded-xl p-5 space-y-3">
-          {waitingInfo.type === "login" ? (
-            <>
-              <div className="flex items-center gap-2">
-                <Lock
-                  size={18}
-                  className="text-amber-600 dark:text-amber-400"
-                />
-                <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-300">
-                  Login Required
-                </h4>
-              </div>
-              <p className="text-sm text-amber-800/80 dark:text-amber-300/80">
-                The agent needs you to log in to{" "}
-                <strong>{waitingInfo.portal}</strong>. Since the browser
-                runs on our server, please log in separately and click
-                &quot;Continue&quot; when ready.
-              </p>
-            </>
-          ) : (
-            <>
-              <div className="flex items-center gap-2">
-                <ShieldCheck
-                  size={18}
-                  className="text-amber-600 dark:text-amber-400"
-                />
-                <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-300">
-                  Approval Required
-                </h4>
-              </div>
-              <p className="text-sm text-amber-800/80 dark:text-amber-300/80">
-                {waitingInfo.description ||
-                  "The agent is about to perform a submission action. Please review and confirm."}
-              </p>
-            </>
-          )}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleResume}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent to-purple-500 text-white text-sm font-medium rounded-lg hover:opacity-90 transition-all duration-150"
-            >
-              <ArrowRight size={14} />
-              Continue
-            </button>
-            <button
-              onClick={handleCancel}
-              className="flex items-center gap-2 px-3 py-2 text-sm font-medium border border-border rounded-lg hover:bg-surface transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
+        <WaitingBlock
+          waitingInfo={waitingInfo}
+          onResume={handleResume}
+          onCancel={handleCancel}
+        />
       )}
 
       {/* Discovered requirements */}
@@ -770,9 +766,9 @@ export default function SubmissionPlanView({
                     <span
                       className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${
                         d.priority === "blocker"
-                          ? "bg-red-200 text-red-800 dark:bg-red-500/20 dark:text-red-400"
+                          ? "bg-red-200 text-red-800 dark:bg-red-500/25 dark:text-red-300"
                           : d.priority === "required"
-                            ? "bg-amber-200 text-amber-800 dark:bg-amber-500/20 dark:text-amber-400"
+                            ? "bg-amber-200 text-amber-800 dark:bg-amber-500/25 dark:text-amber-300"
                             : "bg-surface text-muted"
                       }`}
                     >
@@ -783,10 +779,26 @@ export default function SubmissionPlanView({
                       {d.step_discovered_at}
                     </span>
                   </div>
-                  <p className="text-sm font-medium text-foreground/80">
+                  <p
+                    className={`text-sm font-medium ${
+                      d.priority === "blocker"
+                        ? "text-red-900 dark:text-red-100"
+                        : d.priority === "required"
+                          ? "text-amber-900 dark:text-amber-100"
+                          : "text-foreground"
+                    }`}
+                  >
                     {d.description}
                   </p>
-                  <p className="text-xs text-muted mt-0.5">
+                  <p
+                    className={`text-xs mt-0.5 ${
+                      d.priority === "blocker"
+                        ? "text-red-800/80 dark:text-red-200/80"
+                        : d.priority === "required"
+                          ? "text-amber-800/80 dark:text-amber-200/80"
+                          : "text-muted"
+                    }`}
+                  >
                     {d.suggested_action}
                   </p>
                 </div>
@@ -1072,6 +1084,244 @@ export default function SubmissionPlanView({
           onClose={() => setShowUpgrade(null)}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Pause block — renders different forms based on what the agent is waiting for.
+ * - "credentials": username/password form (with optional Save for next time)
+ * - "mfa": 6-digit code input
+ * - "login": legacy manual-login pass-through ("log in separately")
+ * - "approval": just Continue/Cancel
+ */
+function WaitingBlock({
+  waitingInfo,
+  onResume,
+  onCancel,
+}: {
+  waitingInfo: {
+    type: string;
+    portal?: string;
+    url?: string;
+    description?: string;
+  };
+  onResume: (payload?: Record<string, unknown>) => Promise<void>;
+  onCancel: () => Promise<void>;
+}) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [saveCreds, setSaveCreds] = useState(true);
+  const [mfaCode, setMfaCode] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+
+  async function handleSubmitCredentials() {
+    if (!username || !password || !waitingInfo.portal) return;
+    setSubmitting(true);
+
+    if (saveCreds) {
+      // Save encrypted in DB before resuming (best-effort)
+      try {
+        await fetch("/api/app/portal-credentials", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            portalDomain: waitingInfo.portal,
+            username,
+            password,
+          }),
+        });
+      } catch {
+        // Continue even if save fails — agent still needs creds
+      }
+    }
+
+    await onResume({ username, password, saved: saveCreds });
+  }
+
+  async function handleSubmitMfa() {
+    if (!mfaCode) return;
+    setSubmitting(true);
+    await onResume({ mfa_code: mfaCode });
+  }
+
+  if (waitingInfo.type === "credentials") {
+    return (
+      <div className="bg-amber-50 border border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/20 rounded-xl p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <Lock size={18} className="text-amber-600 dark:text-amber-400" />
+          <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+            Login Required: {waitingInfo.portal}
+          </h4>
+        </div>
+        <p className="text-sm text-amber-900/80 dark:text-amber-200/80">
+          {waitingInfo.description ||
+            `The agent hit a login page on ${waitingInfo.portal}. Enter your credentials below — they'll be encrypted and used only for this submission.`}
+        </p>
+        <div className="space-y-2">
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Username or email"
+            autoComplete="off"
+            disabled={submitting}
+            className="w-full px-3 py-2 text-sm bg-card border border-border rounded-md focus:outline-none focus:border-accent"
+          />
+          <div className="relative">
+            <input
+              type={showPass ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              autoComplete="off"
+              disabled={submitting}
+              className="w-full px-3 py-2 pr-9 text-sm bg-card border border-border rounded-md focus:outline-none focus:border-accent"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPass((s) => !s)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
+              tabIndex={-1}
+            >
+              {showPass ? "Hide" : "Show"}
+            </button>
+          </div>
+          <label className="flex items-center gap-2 text-xs text-amber-900/80 dark:text-amber-200/80 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={saveCreds}
+              onChange={(e) => setSaveCreds(e.target.checked)}
+              className="accent-accent"
+            />
+            Save encrypted for next time (you&apos;ll still be prompted for
+            MFA codes)
+          </label>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSubmitCredentials}
+            disabled={!username || !password || submitting}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent to-purple-500 text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50 transition-all"
+          >
+            {submitting ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <ArrowRight size={14} />
+            )}
+            Submit & Continue
+          </button>
+          <button
+            onClick={onCancel}
+            className="px-3 py-2 text-sm font-medium border border-border rounded-lg hover:bg-surface transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (waitingInfo.type === "mfa") {
+    return (
+      <div className="bg-amber-50 border border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/20 rounded-xl p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <ShieldCheck size={18} className="text-amber-600 dark:text-amber-400" />
+          <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+            Two-Factor Code Required
+          </h4>
+        </div>
+        <p className="text-sm text-amber-900/80 dark:text-amber-200/80">
+          {waitingInfo.description ||
+            `${waitingInfo.portal || "The portal"} is asking for a verification code. Check your phone or authenticator app and enter the code below.`}
+        </p>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={mfaCode}
+          onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ""))}
+          placeholder="123456"
+          maxLength={8}
+          autoFocus
+          disabled={submitting}
+          className="w-full px-3 py-2.5 text-lg font-mono tracking-widest text-center bg-card border border-border rounded-md focus:outline-none focus:border-accent"
+        />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSubmitMfa}
+            disabled={!mfaCode || submitting}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent to-purple-500 text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50 transition-all"
+          >
+            {submitting ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <ArrowRight size={14} />
+            )}
+            Submit Code
+          </button>
+          <button
+            onClick={onCancel}
+            className="px-3 py-2 text-sm font-medium border border-border rounded-lg hover:bg-surface transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Fall through to legacy login or approval blocks
+  return (
+    <div className="bg-amber-50 border border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/20 rounded-xl p-5 space-y-3">
+      {waitingInfo.type === "login" ? (
+        <>
+          <div className="flex items-center gap-2">
+            <Lock size={18} className="text-amber-600 dark:text-amber-400" />
+            <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+              Login Required
+            </h4>
+          </div>
+          <p className="text-sm text-amber-900/80 dark:text-amber-200/80">
+            The agent needs you to log in to{" "}
+            <strong>{waitingInfo.portal}</strong>. Since the browser runs on
+            our server, please log in separately and click &quot;Continue&quot;
+            when ready.
+          </p>
+        </>
+      ) : (
+        <>
+          <div className="flex items-center gap-2">
+            <ShieldCheck
+              size={18}
+              className="text-amber-600 dark:text-amber-400"
+            />
+            <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+              Approval Required
+            </h4>
+          </div>
+          <p className="text-sm text-amber-900/80 dark:text-amber-200/80">
+            {waitingInfo.description ||
+              "The agent is about to perform a submission action. Please review and confirm."}
+          </p>
+        </>
+      )}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => onResume()}
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent to-purple-500 text-white text-sm font-medium rounded-lg hover:opacity-90 transition-all"
+        >
+          <ArrowRight size={14} />
+          Continue
+        </button>
+        <button
+          onClick={onCancel}
+          className="px-3 py-2 text-sm font-medium border border-border rounded-lg hover:bg-surface transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }

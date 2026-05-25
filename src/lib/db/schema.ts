@@ -377,3 +377,26 @@ export const userSettings = pgTable(
     index("idx_settings_user").on(t.userId),
   ]
 );
+
+/**
+ * Encrypted credentials for grant portals (sam.gov, grants.gov, etc.).
+ * Username/password stored as AES-256-GCM ciphertext. MFA codes never stored.
+ */
+export const portalCredentials = pgTable(
+  "portal_credentials",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    portalDomain: text("portal_domain").notNull(), // e.g. "sam.gov", "login.gov"
+    portalLabel: text("portal_label"), // optional friendly name
+    usernameEnc: text("username_enc").notNull(),
+    passwordEnc: text("password_enc").notNull(),
+    lastUsedAt: timestamp("last_used_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (t) => [
+    unique("uq_portal_cred").on(t.userId, t.portalDomain),
+    index("idx_portal_creds_user").on(t.userId),
+  ]
+);
