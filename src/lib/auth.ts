@@ -62,22 +62,22 @@ export async function checkSubscription(
   plan?: string;
   usage?: { costCents: number; capCents: number; creditsCents: number; atLimit: boolean };
 }> {
-  // Admin bypass — check if this admin has stripe gates disabled
-  if (ADMIN_USER_IDS.includes(userId)) {
-    const bypass = await db
-      .select()
-      .from(userSettings)
-      .where(
-        and(
-          eq(userSettings.userId, userId),
-          eq(userSettings.key, "stripe_bypass")
-        )
+  // Stripe bypass — admin-granted access flag stored in user_settings.
+  // The setting can only be written by /api/admin/stripe-bypass (admin-gated),
+  // so it's safe to honor here for any user.
+  const bypass = await db
+    .select()
+    .from(userSettings)
+    .where(
+      and(
+        eq(userSettings.userId, userId),
+        eq(userSettings.key, "stripe_bypass")
       )
-      .limit(1);
+    )
+    .limit(1);
 
-    if (bypass.length > 0 && bypass[0].value === "true") {
-      return { allowed: true, plan: "admin_bypass" };
-    }
+  if (bypass.length > 0 && bypass[0].value === "true") {
+    return { allowed: true, plan: "admin_bypass" };
   }
 
   const customer = await db
@@ -139,26 +139,25 @@ export async function getUserFeatures(userId: string): Promise<{
   plan: string | null;
   isAdmin: boolean;
 }> {
-  // Admin bypass
-  if (ADMIN_USER_IDS.includes(userId)) {
-    const bypass = await db
-      .select()
-      .from(userSettings)
-      .where(
-        and(
-          eq(userSettings.userId, userId),
-          eq(userSettings.key, "stripe_bypass")
-        )
+  // Stripe bypass — granted via admin panel. Setting is write-protected
+  // by /api/admin/stripe-bypass so it's safe to honor here for any user.
+  const bypass = await db
+    .select()
+    .from(userSettings)
+    .where(
+      and(
+        eq(userSettings.userId, userId),
+        eq(userSettings.key, "stripe_bypass")
       )
-      .limit(1);
+    )
+    .limit(1);
 
-    if (bypass.length > 0 && bypass[0].value === "true") {
-      return {
-        features: ["matching", "checklist", "auto_submission"],
-        plan: "admin_bypass",
-        isAdmin: true,
-      };
-    }
+  if (bypass.length > 0 && bypass[0].value === "true") {
+    return {
+      features: ["matching", "checklist", "auto_submission"],
+      plan: "admin_bypass",
+      isAdmin: ADMIN_USER_IDS.includes(userId),
+    };
   }
 
   const customer = await db

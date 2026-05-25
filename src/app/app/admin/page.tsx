@@ -110,6 +110,99 @@ function StatCard({
   );
 }
 
+/**
+ * Toggles the stripe_bypass flag for any user. Available only inside the
+ * admin panel (the endpoint is admin-gated). When enabled, the target user
+ * gets free access to all paid AI features without an active subscription.
+ */
+function UserBypassToggle({ clerkUserId }: { clerkUserId: string }) {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(
+      `/api/admin/stripe-bypass?userId=${encodeURIComponent(clerkUserId)}`
+    )
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setEnabled(Boolean(d.enabled));
+      })
+      .catch(() => {
+        if (!cancelled) setEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [clerkUserId]);
+
+  async function toggle() {
+    if (enabled === null) return;
+    const next = !enabled;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/admin/stripe-bypass", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: clerkUserId, enabled: next }),
+      });
+      const d = await res.json();
+      setEnabled(Boolean(d.enabled));
+    } catch {
+      // ignore — leave UI as-is
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (enabled === null) {
+    return (
+      <div className="text-xs text-muted py-2">
+        <Loader2 className="w-3 h-3 animate-spin inline mr-1.5" />
+        Loading AI bypass status…
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-card rounded-md p-3 flex items-center justify-between gap-3 border border-border">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 mb-0.5">
+          <Brain className="w-3.5 h-3.5 text-accent" />
+          <span className="text-sm font-medium">AI Bypass</span>
+          {enabled && (
+            <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
+              Enabled
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-muted">
+          {enabled
+            ? "Free access to all paid AI features (matching, checklist, auto-submission)."
+            : "Grant free access to all paid AI features for this user."}
+        </p>
+      </div>
+      <button
+        onClick={toggle}
+        disabled={saving}
+        className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-md transition-colors disabled:opacity-50 ${
+          enabled
+            ? "border border-border hover:bg-surface"
+            : "bg-accent text-white hover:bg-accent/90"
+        }`}
+      >
+        {saving ? (
+          <Loader2 className="w-3 h-3 animate-spin" />
+        ) : enabled ? (
+          "Revoke"
+        ) : (
+          "Grant Access"
+        )}
+      </button>
+    </div>
+  );
+}
+
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
     active: "bg-green-100 text-green-700",
@@ -263,6 +356,9 @@ function UserRowItem({
               </div>
             </div>
           )}
+
+          {/* Per-user AI bypass — grant free access to all paid AI features */}
+          <UserBypassToggle clerkUserId={user.clerkUserId} />
         </div>
       )}
     </div>

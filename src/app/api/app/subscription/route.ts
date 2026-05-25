@@ -5,9 +5,9 @@ import { eq, and, inArray } from "drizzle-orm";
 export async function GET() {
   const userId = await requireAuth();
 
-  // Honor admin bypass — admins with stripe_bypass=true get full access
-  const { isAdmin, plan: bypassPlan } = await getUserFeatures(userId);
-  if (isAdmin && bypassPlan === "admin_bypass") {
+  // Honor stripe_bypass — admin-granted free access for this user
+  const { plan: bypassPlan } = await getUserFeatures(userId);
+  if (bypassPlan === "admin_bypass") {
     return Response.json({
       subscription: { plan: "auto_submission", status: "active", isAdminBypass: true },
     });
