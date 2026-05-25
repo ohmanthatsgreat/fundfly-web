@@ -111,6 +111,16 @@ export default function OpportunityCard({
                 {opp.status}
               </span>
             )}
+            {opp.audience && opp.audience.toLowerCase() === "personal" && (
+              <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-md bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300">
+                Personal
+              </span>
+            )}
+            {opp.audience && opp.audience.toLowerCase() === "both" && (
+              <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">
+                Open to all
+              </span>
+            )}
             {matchScore !== undefined && (
               <span
                 className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${

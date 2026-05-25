@@ -78,45 +78,44 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Opportunity not found" }, { status: 404 });
   }
 
-  // Decide mode: "personal" if opportunity audience is personal, else "org".
-  // Fetch the appropriate profile.
-  const isPersonalAudience =
-    (opp.audience || "").toLowerCase() === "personal";
+  // Mode is decided once at application creation and stored on the application
+  // row. Read it directly here — no per-action inference.
+  const storedMode = (app.mode || "business").toLowerCase();
+  const mode: "org" | "personal" = storedMode === "personal" ? "personal" : "org";
 
-  const [orgProfile] = await db
-    .select()
-    .from(userProfiles)
-    .where(eq(userProfiles.userId, userId))
-    .limit(1);
-
-  const [personalProfile] = await db
-    .select()
-    .from(personalProfiles)
-    .where(eq(personalProfiles.userId, userId))
-    .limit(1);
-
-  // Mode selection: prefer opportunity audience signal, fall back to whichever
-  // profile the user has filled out. If both/neither, default to org.
-  let mode: "org" | "personal";
   let profile: Record<string, unknown> | undefined;
-  if (isPersonalAudience && personalProfile) {
-    mode = "personal";
-    profile = personalProfile as unknown as Record<string, unknown>;
-  } else if (orgProfile) {
-    mode = "org";
-    profile = orgProfile as unknown as Record<string, unknown>;
-  } else if (personalProfile) {
-    mode = "personal";
+  if (mode === "personal") {
+    const [personalProfile] = await db
+      .select()
+      .from(personalProfiles)
+      .where(eq(personalProfiles.userId, userId))
+      .limit(1);
+    if (!personalProfile) {
+      return Response.json(
+        {
+          error:
+            "This is a personal application but no personal profile was found. Please set one up.",
+        },
+        { status: 400 }
+      );
+    }
     profile = personalProfile as unknown as Record<string, unknown>;
   } else {
-    return Response.json(
-      {
-        error: isPersonalAudience
-          ? "Please set up your personal profile first."
-          : "Please set up your organization profile first.",
-      },
-      { status: 400 }
-    );
+    const [orgProfile] = await db
+      .select()
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, userId))
+      .limit(1);
+    if (!orgProfile) {
+      return Response.json(
+        {
+          error:
+            "This is a business application but no organization profile was found. Please set one up.",
+        },
+        { status: 400 }
+      );
+    }
+    profile = orgProfile as unknown as Record<string, unknown>;
   }
 
   const sectionsTemplate =

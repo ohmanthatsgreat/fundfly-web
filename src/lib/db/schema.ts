@@ -191,6 +191,9 @@ export const applications = pgTable(
       .notNull()
       .references(() => opportunities.id),
     status: text("status").default("draft"),
+    // 'business' = uses org profile + org section template
+    // 'personal' = uses personal profile + personal section template
+    mode: text("mode").default("business"),
     notes: text("notes"),
     submittedAt: timestamp("submitted_at"),
     createdAt: timestamp("created_at").defaultNow(),

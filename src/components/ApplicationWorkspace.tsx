@@ -35,6 +35,7 @@ type AppData = {
   id: number;
   opportunityId: string;
   status: string;
+  mode?: string | null;
   title: string;
   agency: string | null;
   type: string;
@@ -120,6 +121,7 @@ export default function ApplicationWorkspace({
         id: appData.application.id,
         opportunityId: appData.application.opportunityId,
         status: appData.application.status,
+        mode: appData.application.mode || "business",
         title: opp.title || `Application ${applicationId}`,
         agency: opp.agency || null,
         type: opp.type || "grant",
@@ -363,7 +365,23 @@ export default function ApplicationWorkspace({
           <ArrowLeft size={16} />
         </button>
         <div className="flex-1 min-w-0">
-          <h2 className="text-base font-semibold truncate">{app.title}</h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-base font-semibold truncate">{app.title}</h2>
+            <span
+              className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-md shrink-0 ${
+                app.mode === "personal"
+                  ? "bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300"
+                  : "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300"
+              }`}
+              title={
+                app.mode === "personal"
+                  ? "Uses your personal profile + personal application template"
+                  : "Uses your organization profile + business application template"
+              }
+            >
+              {app.mode === "personal" ? "Personal" : "Business"}
+            </span>
+          </div>
           <div className="flex items-center gap-3 text-xs text-muted mt-0.5">
             {app.agency && <span>{app.agency}</span>}
             {app.deadline && (
