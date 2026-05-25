@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Brain, Loader2, Sparkles, ChevronDown, ChevronUp, RotateCcw, Search } from "lucide-react";
 import OpportunityCard, { type Opportunity } from "@/components/OpportunityCard";
+import OpportunityDetail from "@/components/OpportunityDetail";
 import UpgradeModal from "@/components/UpgradeModal";
 
 interface Match {
@@ -29,6 +30,46 @@ export default function MatchesPage() {
   const [lastScanned, setLastScanned] = useState(0);
   const [expandedReasons, setExpandedReasons] = useState<Set<number>>(new Set());
   const [userPlan, setUserPlan] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Opportunity | null>(null);
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+
+  const handleSave = async (id: string) => {
+    setSavedIds((prev) => new Set(prev).add(id));
+    await fetch("/api/app/saved", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ opportunityId: id }),
+    });
+  };
+
+  const handleUnsave = async (id: string) => {
+    setSavedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    await fetch("/api/app/saved", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ opportunityId: id }),
+    });
+  };
+
+  // Prime saved set from server so the heart icon reflects truth
+  useEffect(() => {
+    fetch("/api/app/saved")
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.saved)) {
+          setSavedIds(
+            new Set(
+              d.saved.map((s: { opportunityId: string }) => s.opportunityId)
+            )
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const fetchMatches = useCallback(async () => {
     setLoading(true);
@@ -273,12 +314,55 @@ export default function MatchesPage() {
         </div>
       ) : (
         <>
+          {/* Results summary */}
+          <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
+            <div>
+              <p className="text-sm">
+                <span className="font-semibold">{matches.length}</span>{" "}
+                <span className="text-muted">
+                  {matches.length === 1 ? "match" : "matches"}
+                </span>
+                {lastScanned > 0 && (
+                  <>
+                    <span className="text-muted"> from </span>
+                    <span className="font-semibold">
+                      {lastScanned.toLocaleString()}
+                    </span>
+                    <span className="text-muted">
+                      {" "}
+                      opportunit{lastScanned === 1 ? "y" : "ies"} scanned
+                    </span>
+                  </>
+                )}
+              </p>
+              {hasMore && (
+                <p className="text-xs text-muted mt-0.5">
+                  More opportunities available — click &ldquo;Keep Searching&rdquo;
+                  below to scan the next batch
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => runMatch(true)}
+              disabled={running}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted hover:text-foreground border border-border rounded-md hover:bg-surface transition-colors disabled:opacity-50"
+              title="Re-scan from the start with the current profile"
+            >
+              <RotateCcw size={11} />
+              Re-scan from Start
+            </button>
+          </div>
+
           <div className="space-y-3">
             {matches.map((m) => (
               <div key={m.id}>
                 <OpportunityCard
                   opportunity={m.opportunity}
                   matchScore={Math.round(m.score)}
+                  isSaved={savedIds.has(m.opportunity.id)}
+                  onSelect={setSelected}
+                  onSave={handleSave}
+                  onUnsave={handleUnsave}
                   onNextStep={handleNextStep}
                 />
                 {/* Match reasoning accordion */}
@@ -334,6 +418,17 @@ export default function MatchesPage() {
         <UpgradeModal
           feature={upgradeFeature}
           onClose={() => setShowUpgrade(false)}
+        />
+      )}
+      {selected && (
+        <OpportunityDetail
+          opportunity={selected}
+          isSaved={savedIds.has(selected.id)}
+          onClose={() => setSelected(null)}
+          onSave={handleSave}
+          onUnsave={handleUnsave}
+          onStartApplication={() => handleNextStep(selected)}
+          onSelectSimilar={(opp) => setSelected(opp)}
         />
       )}
     </div>

@@ -11,7 +11,113 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
+  ExternalLink,
 } from "lucide-react";
+
+/**
+ * Normalize a planner-supplied portal name into a clean domain.
+ * Planner sometimes returns:
+ *   "Zeffy"          → "zeffy.com"
+ *   "www.sam.gov"    → "sam.gov"
+ *   "https://sam.gov/login" → "sam.gov"
+ *   "n/a" / "TBD"    → null (filtered out)
+ *   "the agency's website" → null (no dot, not in the alias list)
+ */
+function normalizePortal(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  let s = raw.toLowerCase().trim();
+  if (!s) return null;
+
+  // Strip noise
+  const noise = new Set([
+    "n/a",
+    "na",
+    "none",
+    "tbd",
+    "unknown",
+    "tba",
+    "the agency's website",
+    "agency website",
+    "agency's website",
+    "program officer",
+    "various",
+    "multiple",
+  ]);
+  if (noise.has(s)) return null;
+
+  // Extract from URL if given
+  if (s.startsWith("http")) {
+    try {
+      s = new URL(s).hostname;
+    } catch {
+      // fall through
+    }
+  }
+  // Strip protocol + paths if regex above didn't catch them
+  s = s.replace(/^https?:\/\//, "").split("/")[0];
+  // Strip www.
+  s = s.replace(/^www\./, "");
+
+  // Known plain-name → canonical domain map (planner often drops the TLD)
+  const ALIASES: Record<string, string> = {
+    zeffy: "zeffy.com",
+    "sam": "sam.gov",
+    "grants": "grants.gov",
+    "login": "login.gov",
+    nspires: "nspires.nasaprs.com",
+    "era commons": "era.nih.gov",
+    eracommons: "era.nih.gov",
+    "nih era": "era.nih.gov",
+    dsip: "dsip.dtic.mil",
+    submittable: "submittable.com",
+    zoomgrants: "zoomgrants.com",
+    fluxx: "fluxx.io",
+  };
+  if (ALIASES[s]) return ALIASES[s];
+
+  // Require a TLD: must contain a dot AND that dot is followed by 2+ letters
+  // (rejects "the agency", "program officer", etc.)
+  if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(s)) return null;
+
+  return s;
+}
+
+/**
+ * Known portal signup URLs. The agent doesn't navigate users here — these
+ * are surfaced as helper links so users who don't already have accounts can
+ * sign up before adding credentials.
+ *
+ * Keys must be the same normalized lowercase domains used by the planner
+ * (and matched against `requiredPortals` upstream).
+ */
+const SIGNUP_URLS: Record<string, string> = {
+  "sam.gov": "https://sam.gov/content/home",
+  "login.gov": "https://secure.login.gov/sign_up/enter_email",
+  "grants.gov": "https://apply07.grants.gov/apply/register.faces",
+  "simpler.grants.gov": "https://simpler.grants.gov/",
+  "era.nih.gov": "https://public.era.nih.gov/commonsplus/public/login/newAccount.era",
+  "nspires.nasaprs.com": "https://nspires.nasaprs.com/external/aboutRegistration.do",
+  "dsip.dtic.mil": "https://www.dodsbirsttr.mil/submissions/login",
+  "fluxx.io": "https://www.fluxx.io/",
+  "submittable.com": "https://www.submittable.com/sign-up",
+  "zoomgrants.com": "https://www.zoomgrants.com/welcome.asp?action=public",
+};
+
+/** Display label for the link — falls back to the domain itself. */
+function getPortalLabel(domain: string): string {
+  const map: Record<string, string> = {
+    "sam.gov": "SAM.gov",
+    "login.gov": "Login.gov",
+    "grants.gov": "Grants.gov",
+    "simpler.grants.gov": "Simpler.Grants.gov",
+    "era.nih.gov": "NIH eRA Commons",
+    "nspires.nasaprs.com": "NASA NSPIRES",
+    "dsip.dtic.mil": "DoD DSIP",
+    "submittable.com": "Submittable",
+    "zoomgrants.com": "ZoomGrants",
+  };
+  return map[domain] || domain;
+}
 
 type SavedCred = {
   id: number;
@@ -54,12 +160,13 @@ export default function PortalCredentialsPanel({
     refresh();
   }, [refresh]);
 
-  // Dedupe + normalize portal list
+  // Normalize + filter junk + dedupe. Planner output is messy (aliases,
+  // missing TLDs, placeholder strings like "TBD") — see normalizePortal.
   const portals = Array.from(
     new Set(
       requiredPortals
-        .map((p) => p.toLowerCase().trim())
-        .filter((p) => p && p !== "n/a")
+        .map((p) => normalizePortal(p))
+        .filter((p): p is string => p !== null)
     )
   );
 
@@ -212,7 +319,7 @@ function PortalRow({
             <Lock size={14} className="text-muted shrink-0" />
           )}
           <span className="text-sm font-medium text-foreground truncate">
-            {domain}
+            {getPortalLabel(domain)}
           </span>
           {savedCred && (
             <span className="text-[10px] text-muted">
@@ -221,6 +328,18 @@ function PortalRow({
                 ? ` • last used ${new Date(savedCred.lastUsedAt).toLocaleDateString()}`
                 : ""}
             </span>
+          )}
+          {!savedCred && SIGNUP_URLS[domain] && (
+            <a
+              href={SIGNUP_URLS[domain]}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:inline-flex items-center gap-1 text-[10px] text-accent hover:underline"
+              title={`Create an account on ${getPortalLabel(domain)}`}
+            >
+              No account? Create one
+              <ExternalLink size={9} />
+            </a>
           )}
         </div>
 
