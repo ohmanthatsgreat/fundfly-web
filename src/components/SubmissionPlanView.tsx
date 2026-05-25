@@ -47,6 +47,10 @@ type PlanData = {
   estimated_total_time: string;
   portals_involved: string[];
   prerequisites_summary: string;
+  submission_method?: "portal" | "email" | "mail" | "mixed";
+  submission_email?: string | null;
+  submission_mailing_address?: string | null;
+  submission_notes?: string | null;
   steps: SubmissionStep[];
   warnings: string[];
 };
@@ -584,6 +588,9 @@ export default function SubmissionPlanView({
   const isRunning = planStatus === "running";
   const isComplete = planStatus === "completed";
   const isFailed = planStatus === "failed";
+  const submissionMethod = planData.submission_method || "portal";
+  const isOnlineSubmission =
+    submissionMethod === "portal" || submissionMethod === "mixed";
 
   return (
     <div className="space-y-6">
@@ -596,13 +603,22 @@ export default function SubmissionPlanView({
           &larr; Back to workspace
         </button>
         <div className="flex items-center gap-2">
-          {planStatus === "pending" && (
+          {planStatus === "pending" && isOnlineSubmission && (
             <button
               onClick={handleStartAgent}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm font-medium rounded-lg hover:opacity-90 transition-all duration-150"
             >
               <Play size={14} />
               Launch Browser Agent
+            </button>
+          )}
+          {planStatus === "pending" && !isOnlineSubmission && (
+            <button
+              onClick={onBack}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent to-purple-500 text-white text-sm font-medium rounded-lg hover:opacity-90 transition-all duration-150"
+            >
+              <ArrowRight size={14} />
+              Back to Workspace to Download
             </button>
           )}
           {isRunning && !waitingInfo && (
@@ -625,6 +641,79 @@ export default function SubmissionPlanView({
           )}
         </div>
       </div>
+
+      {/* Submission method banner — only show when not portal-only */}
+      {(submissionMethod === "email" ||
+        submissionMethod === "mail" ||
+        submissionMethod === "mixed") && (
+        <div
+          className={`rounded-xl p-4 border flex items-start gap-3 ${
+            submissionMethod === "mixed"
+              ? "bg-amber-50 border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/20"
+              : "bg-blue-50 border-blue-200 dark:bg-blue-500/10 dark:border-blue-500/20"
+          }`}
+        >
+          <FileText
+            size={18}
+            className={
+              submissionMethod === "mixed"
+                ? "text-amber-600 dark:text-amber-400 shrink-0 mt-0.5"
+                : "text-blue-600 dark:text-blue-400 shrink-0 mt-0.5"
+            }
+          />
+          <div className="space-y-1 text-sm">
+            <h4
+              className={`font-semibold ${
+                submissionMethod === "mixed"
+                  ? "text-amber-900 dark:text-amber-200"
+                  : "text-blue-900 dark:text-blue-200"
+              }`}
+            >
+              {submissionMethod === "email" && "This grant is submitted by email"}
+              {submissionMethod === "mail" && "This grant is submitted by mail"}
+              {submissionMethod === "mixed" &&
+                "This grant has online + email/mail components"}
+            </h4>
+            <p
+              className={
+                submissionMethod === "mixed"
+                  ? "text-amber-900/80 dark:text-amber-200/80"
+                  : "text-blue-900/80 dark:text-blue-200/80"
+              }
+            >
+              {planData.submission_notes ||
+                (submissionMethod === "email"
+                  ? "Download a formatted DOCX of your application from the workspace, then email it to the recipient below."
+                  : submissionMethod === "mail"
+                    ? "Download a formatted DOCX of your application, print it, and mail it to the address below."
+                    : "Some parts are online (browser agent can help); other parts must be emailed or mailed manually.")}
+            </p>
+            {planData.submission_email && (
+              <p className="text-xs">
+                <span className="text-muted">Send to:</span>{" "}
+                <a
+                  href={`mailto:${planData.submission_email}`}
+                  className="font-mono text-accent hover:underline"
+                >
+                  {planData.submission_email}
+                </a>
+              </p>
+            )}
+            {planData.submission_mailing_address && (
+              <p className="text-xs">
+                <span className="text-muted">Mail to:</span>{" "}
+                <span className="font-mono">
+                  {planData.submission_mailing_address}
+                </span>
+              </p>
+            )}
+            <p className="text-xs text-muted mt-1">
+              Use the &ldquo;Download DOCX&rdquo; button on your application
+              workspace to generate the formatted file.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Plan summary */}
       <div className="bg-card border border-border rounded-xl p-5 space-y-4">

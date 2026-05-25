@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Brain, Loader2, Sparkles, ChevronDown, ChevronUp, RotateCcw, Search } from "lucide-react";
 import OpportunityCard, { type Opportunity } from "@/components/OpportunityCard";
 import UpgradeModal from "@/components/UpgradeModal";
@@ -179,13 +180,96 @@ export default function MatchesPage() {
           <Loader2 className="w-6 h-6 animate-spin text-muted" />
         </div>
       ) : matches.length === 0 ? (
-        <div className="text-center py-20">
-          <Brain className="w-12 h-12 text-muted mx-auto mb-4" />
-          <p className="text-lg font-medium mb-2">No matches yet</p>
-          <p className="text-sm text-muted mb-6">
-            Fill out your {mode === "org" ? "organization" : "personal"} profile,
-            then click &ldquo;Run AI Match&rdquo; to score opportunities.
-          </p>
+        <div className="max-w-xl mx-auto py-12">
+          <div className="text-center mb-8">
+            <Brain className="w-12 h-12 text-accent mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">
+              Let&apos;s find your best grants
+            </h2>
+            <p className="text-sm text-muted">
+              Our AI scores every opportunity against your profile so you can
+              focus on what fits.
+            </p>
+          </div>
+
+          {/* How it works — set expectations up front */}
+          <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+            <h3 className="text-xs font-semibold text-muted uppercase tracking-wider">
+              How it works
+            </h3>
+
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 rounded-full bg-accent/15 text-accent text-xs font-semibold flex items-center justify-center shrink-0 mt-0.5">
+                1
+              </div>
+              <div>
+                <p className="text-sm font-medium">
+                  Fill out your{" "}
+                  {mode === "org" ? "organization" : "personal"} profile
+                </p>
+                <p className="text-xs text-muted mt-0.5">
+                  The more complete, the better the AI matches.{" "}
+                  <Link
+                    href={
+                      mode === "org" ? "/app/profile" : "/app/personal-profile"
+                    }
+                    className="text-accent hover:underline"
+                  >
+                    Open profile &rarr;
+                  </Link>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 rounded-full bg-accent/15 text-accent text-xs font-semibold flex items-center justify-center shrink-0 mt-0.5">
+                2
+              </div>
+              <div>
+                <p className="text-sm font-medium">Click &ldquo;Run AI Match&rdquo;</p>
+                <p className="text-xs text-muted mt-0.5">
+                  We score opportunities <strong>500 at a time</strong> to
+                  manage AI cost. Each scan takes ~30 seconds.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 rounded-full bg-accent/15 text-accent text-xs font-semibold flex items-center justify-center shrink-0 mt-0.5">
+                3
+              </div>
+              <div>
+                <p className="text-sm font-medium">
+                  Keep clicking &ldquo;Keep Searching&rdquo; until you&apos;ve covered them all
+                </p>
+                <p className="text-xs text-muted mt-0.5">
+                  There are 1M+ opportunities indexed — your best matches may
+                  be in batch 2, 3, or beyond. Or hit &ldquo;Re-scan from
+                  Start&rdquo; anytime to redo with a refreshed profile.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-border">
+              <button
+                onClick={() => runMatch(false)}
+                disabled={running}
+                className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-accent to-purple-500 text-white text-sm font-medium rounded-lg hover:opacity-90 transition-all disabled:opacity-50"
+              >
+                {running ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Matching...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Run AI Match
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       ) : (
         <>

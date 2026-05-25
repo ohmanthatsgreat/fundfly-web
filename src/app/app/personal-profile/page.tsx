@@ -3,7 +3,20 @@
 import { useState, useEffect } from "react";
 import { UserCircle, Loader2, Save, CheckCircle, Sparkles } from "lucide-react";
 
-const FIELD_GROUPS = [
+type Field = {
+  key: string;
+  label: string;
+  type: string;
+  options?: string[];
+  placeholder?: string;
+};
+
+type FieldGroup = {
+  title: string;
+  fields: Field[];
+};
+
+const FIELD_GROUPS: FieldGroup[] = [
   {
     title: "Basic Information",
     fields: [
@@ -130,6 +143,53 @@ const FIELD_GROUPS = [
     fields: [
       { key: "skills", label: "Skills & Qualifications", type: "textarea" },
       { key: "interests", label: "Areas of Interest for Funding", type: "textarea" },
+    ],
+  },
+  {
+    title: "About You (used by AI to write personal applications)",
+    fields: [
+      {
+        key: "bio",
+        label: "Short Bio",
+        type: "textarea",
+        placeholder:
+          "A few sentences about who you are, where you're from, what you do, and what drives you.",
+      },
+      {
+        key: "personalMission",
+        label: "Personal Mission or Cause",
+        type: "textarea",
+        placeholder:
+          "What matters most to you? What change do you want to make through your work?",
+      },
+      {
+        key: "projectGoals",
+        label: "Project / Career Goals",
+        type: "textarea",
+        placeholder:
+          "What are you working on or hoping to accomplish in the next 1–3 years?",
+      },
+      {
+        key: "intendedUseOfFunds",
+        label: "How You'd Use Grant Funds",
+        type: "textarea",
+        placeholder:
+          "Be specific: materials, tuition, equipment, studio space, living expenses while working on a project, etc.",
+      },
+      {
+        key: "pastAchievements",
+        label: "Past Achievements, Awards, or Recognition",
+        type: "textarea",
+        placeholder:
+          "Awards, exhibitions, publications, scholarships, completed projects — anything that demonstrates your track record.",
+      },
+      {
+        key: "portfolioLinks",
+        label: "Portfolio / Sample Work Links",
+        type: "textarea",
+        placeholder:
+          "URLs to your website, portfolio, GitHub, behance, published articles, social channels, etc. One per line.",
+      },
     ],
   },
 ];
@@ -282,6 +342,7 @@ export default function PersonalProfilePage() {
                     <textarea
                       value={profile[field.key] || ""}
                       onChange={(e) => handleChange(field.key, e.target.value)}
+                      placeholder={field.placeholder}
                       rows={3}
                       className={inputClass + " resize-none"}
                     />

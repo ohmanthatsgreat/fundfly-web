@@ -50,6 +50,13 @@ function buildPersonalSummary(profile: ProfileLike): string {
     ["currentSchool", "Current School"],
     ["skills", "Skills"],
     ["interests", "Interests"],
+    // Narrative fields — provide rich content for personal application writing
+    ["bio", "Bio"],
+    ["personalMission", "Personal Mission / Cause"],
+    ["projectGoals", "Project Goals"],
+    ["intendedUseOfFunds", "Intended Use of Funds"],
+    ["pastAchievements", "Past Achievements / Awards"],
+    ["portfolioLinks", "Portfolio / Work Samples"],
   ];
   const parts: string[] = [];
   for (const [key, label] of fields) {
@@ -219,6 +226,36 @@ export const APPLICATION_SECTIONS = [
   { key: "timeline", title: "Project Timeline", prompt: "Create a project timeline with major phases, milestones, and deliverables organized by quarter or month." },
 ];
 
+/**
+ * Personal grant application template — for artists, students, individuals
+ * applying for personal grants, fellowships, endowments, or emergency relief.
+ * Different shape from org applications: no "Organizational Capability" or
+ * "Key Personnel" — instead leads with personal narrative, qualifications,
+ * and intended use of funds.
+ */
+export const PERSONAL_APPLICATION_SECTIONS = [
+  { key: "personal_statement", title: "Personal Statement", prompt: "Write a compelling personal statement (300-500 words) introducing the applicant — their background, motivations, and why this grant matters to them personally. Use first person. Draw heavily from the applicant's bio, personal mission, and life context." },
+  { key: "background", title: "Background & Qualifications", prompt: "Write a background and qualifications section (300-500 words) covering relevant education, experience, skills, and demonstrated commitment to the field. Use specific examples from the applicant's profile (education, field of study, skills, achievements). First person." },
+  { key: "project_proposal", title: "Project Proposal", prompt: "Write a project proposal (400-700 words) describing what the applicant intends to do with the grant. Based on the applicant's project goals and intended use of funds, lay out a clear plan with objectives, approach, and timeline. First person." },
+  { key: "impact_statement", title: "Impact & Use of Funds", prompt: "Write an impact statement (300-500 words) describing the specific outcomes the applicant aims to achieve, who benefits, and how the funds will be used. Include a high-level budget breakdown based on the intended use of funds. First person." },
+  { key: "achievements", title: "Past Achievements", prompt: "Write a past achievements section (200-400 words) highlighting awards, exhibitions, publications, scholarships, completed projects, or other accomplishments that demonstrate the applicant's track record. Use specifics from the applicant's profile. First person." },
+  { key: "portfolio_summary", title: "Portfolio / Sample Work", prompt: "Write a portfolio summary (200-400 words) describing the applicant's body of work, with references to specific pieces, publications, performances, research, or projects. If portfolio links are provided in the profile, mention them. First person." },
+  { key: "references", title: "References & Letters of Support", prompt: "Provide a list of recommended references and a brief note on letters of support the applicant should plan to gather, based on their field, education, and past collaborators. Format as a numbered list with suggested types of references (e.g., 'Academic advisor — speaks to research capacity')." },
+  { key: "timeline", title: "Project Timeline", prompt: "Create a personal project timeline with major milestones and deliverables organized by month or quarter, scoped to one individual's effort (not a team). Be realistic about what one person can accomplish." },
+];
+
+/**
+ * Pick which section template to use based on opportunity audience or profile mode.
+ * "personal" → personal grants for individuals (artists, students, etc.)
+ * "business" / "org" / null → standard organizational applications
+ */
+export function pickApplicationSections(audience: string | null | undefined) {
+  if (audience && audience.toLowerCase() === "personal") {
+    return PERSONAL_APPLICATION_SECTIONS;
+  }
+  return APPLICATION_SECTIONS;
+}
+
 export type SectionResult = {
   key: string;
   title: string;
@@ -227,14 +264,28 @@ export type SectionResult = {
 
 export async function generateApplicationSections(
   profile: ProfileLike,
-  opportunity: OppLike
+  opportunity: OppLike,
+  mode: "org" | "personal" = "org"
 ): Promise<SectionResult[]> {
-  const orgSummary = buildOrgSummary(profile);
+  const isPersonal = mode === "personal";
+  const profileSummary = isPersonal
+    ? buildPersonalSummary(profile)
+    : buildOrgSummary(profile);
   const oppSummary = buildOpportunitySummary(opportunity);
 
-  const sectionList = APPLICATION_SECTIONS
+  const sections = isPersonal ? PERSONAL_APPLICATION_SECTIONS : APPLICATION_SECTIONS;
+  const sectionList = sections
     .map((s, i) => `${i + 1}. "${s.key}": ${s.prompt}`)
     .join("\n");
+
+  const expertRole = isPersonal
+    ? "an expert grant writer specializing in personal grants, fellowships, endowments, and individual funding awards for artists, students, and individuals"
+    : "an expert federal grant writer";
+
+  const profileLabel = isPersonal ? "APPLICANT PROFILE" : "ORGANIZATION PROFILE";
+  const reviewerNote = isPersonal
+    ? "Write in first person, with a personal and authentic voice. Use specific details from the applicant's profile — their bio, mission, project goals, and past achievements. Make it feel human, not corporate."
+    : "Write in a professional, compelling tone appropriate for federal grant reviewers. Use specific details from the organization profile.";
 
   const response = await getClient().messages.create({
     model: "claude-sonnet-4-6",
@@ -242,10 +293,10 @@ export async function generateApplicationSections(
     messages: [
       {
         role: "user",
-        content: `You are an expert federal grant writer. Generate a complete, structured grant application for the following opportunity, tailored to this organization.
+        content: `You are ${expertRole}. Generate a complete, structured grant application for the following opportunity, tailored to this ${isPersonal ? "applicant" : "organization"}.
 
-ORGANIZATION PROFILE:
-${orgSummary}
+${profileLabel}:
+${profileSummary}
 
 FUNDING OPPORTUNITY:
 ${oppSummary}
@@ -253,7 +304,7 @@ ${oppSummary}
 Generate each of these sections:
 ${sectionList}
 
-Respond with a JSON array where each element has "key" (matching the section key above), "title" (the section title), and "content" (the full section text in markdown). Write in a professional, compelling tone appropriate for federal grant reviewers. Use specific details from the organization profile. Each section should be thorough but focused.
+Respond with a JSON array where each element has "key" (matching the section key above), "title" (the section title), and "content" (the full section text in markdown). ${reviewerNote} Each section should be thorough but focused.
 
 Respond with ONLY the JSON array, no other text.`,
       },
@@ -281,14 +332,28 @@ export async function generateSection(
   profile: ProfileLike,
   opportunity: OppLike,
   sectionPrompt: string,
-  existingContent?: string
+  existingContent?: string,
+  mode: "org" | "personal" = "org"
 ): Promise<string> {
-  const orgSummary = buildOrgSummary(profile);
+  const isPersonal = mode === "personal";
+  const profileSummary = isPersonal
+    ? buildPersonalSummary(profile)
+    : buildOrgSummary(profile);
   const oppSummary = buildOpportunitySummary(opportunity);
 
   const regen = existingContent
     ? `\n\nThe user previously had this content which they want improved:\n${existingContent}`
     : "";
+
+  const expertRole = isPersonal
+    ? "an expert grant writer specializing in personal grants, fellowships, and individual funding awards"
+    : "an expert federal grant writer";
+
+  const profileLabel = isPersonal ? "APPLICANT PROFILE" : "ORGANIZATION PROFILE";
+
+  const voiceNote = isPersonal
+    ? "Write in first person, with a personal and authentic voice."
+    : "Write in a professional, compelling tone.";
 
   const response = await getClient().messages.create({
     model: "claude-sonnet-4-6",
@@ -296,17 +361,17 @@ export async function generateSection(
     messages: [
       {
         role: "user",
-        content: `You are an expert federal grant writer. Write this section for a grant application.
+        content: `You are ${expertRole}. Write this section for a grant application.
 
-ORGANIZATION PROFILE:
-${orgSummary}
+${profileLabel}:
+${profileSummary}
 
 FUNDING OPPORTUNITY:
 ${oppSummary}
 
 SECTION TO WRITE: ${sectionPrompt}${regen}
 
-Write in a professional, compelling tone. Use markdown formatting. Return ONLY the section content, no other commentary.`,
+${voiceNote} Use markdown formatting. Return ONLY the section content, no other commentary.`,
       },
     ],
   });

@@ -15,6 +15,8 @@ import {
   FileText,
   Globe,
   Mail,
+  Copy,
+  Check,
 } from "lucide-react";
 import SubmissionPlanView from "./SubmissionPlanView";
 import UpgradeModal from "./UpgradeModal";
@@ -78,6 +80,18 @@ export default function ApplicationWorkspace({
   const [saving, setSaving] = useState(false);
   const [showSubmission, setShowSubmission] = useState(initialView === "submission");
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const handleCopySection = async (sectionKey: string, content: string) => {
+    if (!content) return;
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedKey(sectionKey);
+      setTimeout(() => setCopiedKey(null), 1500);
+    } catch {
+      // Clipboard API can fail in insecure contexts; ignore silently
+    }
+  };
 
   const fetchApp = useCallback(async () => {
     try {
@@ -585,12 +599,37 @@ export default function ApplicationWorkspace({
                           Cancel
                         </button>
                       )}
+                      {!isEditing && section.content && (
+                        <button
+                          onClick={() =>
+                            handleCopySection(
+                              section.sectionKey,
+                              section.content
+                            )
+                          }
+                          className="flex items-center gap-1 text-xs font-medium text-muted hover:text-foreground transition-colors ml-auto"
+                          title="Copy section text to clipboard"
+                        >
+                          {copiedKey === section.sectionKey ? (
+                            <>
+                              <Check size={11} className="text-emerald-500" />{" "}
+                              <span className="text-emerald-600 dark:text-emerald-400">
+                                Copied
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy size={11} /> Copy
+                            </>
+                          )}
+                        </button>
+                      )}
                       <button
                         onClick={() =>
                           handleRegenerateSection(section.sectionKey)
                         }
                         disabled={isRegen}
-                        className="flex items-center gap-1 text-xs font-medium text-muted hover:text-foreground transition-colors disabled:opacity-50 ml-auto"
+                        className={`flex items-center gap-1 text-xs font-medium text-muted hover:text-foreground transition-colors disabled:opacity-50 ${section.content && !isEditing ? "" : "ml-auto"}`}
                       >
                         {isRegen ? (
                           <>

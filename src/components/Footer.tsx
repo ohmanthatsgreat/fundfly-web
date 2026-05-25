@@ -36,8 +36,20 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="mt-12 pt-8 border-t border-border text-center text-sm text-muted">
-          &copy; {new Date().getFullYear()} FundFly. All rights reserved.
+        <div className="mt-12 pt-8 border-t border-border space-y-3 text-center">
+          <p className="text-xs text-muted leading-relaxed max-w-3xl mx-auto">
+            <strong className="text-foreground/70">Disclaimer:</strong> FundFly
+            is a grant discovery and application-drafting tool. We are not
+            affiliated with any government agency or foundation. FundFly does
+            not provide legal, tax, financial, or grant-writing professional
+            advice. Verify all eligibility requirements, deadlines, and
+            submission instructions directly with the funder before applying.
+            Always consult qualified professionals for legal, tax, or
+            financial decisions related to grant funding.
+          </p>
+          <p className="text-sm text-muted">
+            &copy; {new Date().getFullYear()} FundFly. All rights reserved.
+          </p>
         </div>
       </div>
     </footer>

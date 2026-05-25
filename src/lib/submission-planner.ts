@@ -31,6 +31,17 @@ type OppLike = {
   eligibilityTypes?: string | null;
 };
 
+/**
+ * How the completed application is delivered to the funder.
+ * - "portal":  Submitted online via a government portal (Grants.gov, NSPIRES,
+ *              eRA Commons, etc.) — supported by the browser agent.
+ * - "email":   Submitted as an attachment to a designated email address.
+ *              Use the DOCX export and have the user send it manually.
+ * - "mail":    Physical mail submission. Use DOCX export, user prints + mails.
+ * - "mixed":   Some materials online, some via email/mail.
+ */
+export type SubmissionMethod = "portal" | "email" | "mail" | "mixed";
+
 export type SubmissionPlan = {
   opportunity_id: string;
   opportunity_title: string;
@@ -38,6 +49,14 @@ export type SubmissionPlan = {
   estimated_total_time: string;
   portals_involved: string[];
   prerequisites_summary: string;
+  /** Primary submission method — drives whether to launch agent or use DOCX export. */
+  submission_method: SubmissionMethod;
+  /** Recipient email address if submission_method is "email" (or "mixed" with email component). */
+  submission_email: string | null;
+  /** Mailing address if submission_method is "mail". */
+  submission_mailing_address: string | null;
+  /** Human-readable note about delivery requirements. */
+  submission_notes: string | null;
   steps: {
     step_number: number;
     portal: string;
@@ -104,10 +123,11 @@ ${oppParts}
 
 Based on the opportunity type, agency, and source portal, create a complete submission plan. Consider:
 
-1. **Portal-specific requirements**: Different agencies use different portals (Grants.gov, NSPIRES, eRA Commons, DSIP, etc.)
-2. **Prerequisites**: SAM.gov registration, Grants.gov registration, agency-specific accounts, CCR reports
-3. **Artifacts that flow between portals**: Report IDs, confirmation numbers, registration certificates
-4. **Order of operations**: Which steps must complete before others can begin
+1. **Submission method**: First, determine how the application is delivered. Most federal opportunities go through Grants.gov/NSPIRES/eRA Commons portals. However, some foundation grants, NIH program announcements, and smaller agency grants require **email submission** to a program officer, or even physical **mail**. Read the description carefully for phrases like "email completed application to," "send to mailing address," "submit via email," "PDF attachment to," or for explicit recipient email/postal addresses. Pick ONE primary method: "portal", "email", "mail", or "mixed" (if there's both online registration AND email/mail components).
+2. **Portal-specific requirements**: Different agencies use different portals (Grants.gov, NSPIRES, eRA Commons, DSIP, etc.)
+3. **Prerequisites**: SAM.gov registration, Grants.gov registration, agency-specific accounts, CCR reports
+4. **Artifacts that flow between portals**: Report IDs, confirmation numbers, registration certificates
+5. **Order of operations**: Which steps must complete before others can begin
 
 Return a JSON object with this structure:
 {
@@ -117,6 +137,10 @@ Return a JSON object with this structure:
   "estimated_total_time": "<time estimate>",
   "portals_involved": ["portal1.gov", "portal2.gov"],
   "prerequisites_summary": "<brief summary of what needs to happen first>",
+  "submission_method": "portal" | "email" | "mail" | "mixed",
+  "submission_email": "<recipient email if method is email or mixed, else null>",
+  "submission_mailing_address": "<full address if method is mail, else null>",
+  "submission_notes": "<one-line note describing delivery requirements, e.g. 'PDF attached to program officer email by 5pm EST on deadline'>",
   "steps": [
     {
       "step_number": 1,
@@ -136,7 +160,7 @@ Return a JSON object with this structure:
   "warnings": ["any important warnings about this submission"]
 }
 
-Be thorough and specific to this exact opportunity type and agency. Include ALL prerequisite steps. The browser agent will follow this plan exactly.
+Be thorough and specific to this exact opportunity type and agency. Include ALL prerequisite steps. If submission is by email or mail, the steps should focus on preparing the application package — the user will deliver it manually using a DOCX export, NOT a browser agent.
 
 Return ONLY the JSON object.`,
       },

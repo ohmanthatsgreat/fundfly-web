@@ -154,6 +154,14 @@ export const personalProfiles = pgTable("personal_profiles", {
   skills: text("skills"),
   interests: text("interests"),
   housingStatus: text("housing_status"),
+  // Narrative fields — used by AI to write personal application sections
+  // (personal statement, project proposal, etc.). Added 2026-05-24.
+  bio: text("bio"),
+  personalMission: text("personal_mission"),
+  projectGoals: text("project_goals"),
+  intendedUseOfFunds: text("intended_use_of_funds"),
+  pastAchievements: text("past_achievements"),
+  portfolioLinks: text("portfolio_links"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 

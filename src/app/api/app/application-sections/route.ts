@@ -1,8 +1,20 @@
 import { NextRequest } from "next/server";
-import { db, applications, applicationSections, opportunities, userProfiles } from "@/lib/db";
+import {
+  db,
+  applications,
+  applicationSections,
+  opportunities,
+  userProfiles,
+  personalProfiles,
+} from "@/lib/db";
 import { requireAuth, checkSubscription } from "@/lib/auth";
 import { eq, and } from "drizzle-orm";
-import { generateApplicationSections, generateSection, APPLICATION_SECTIONS } from "@/lib/ai";
+import {
+  generateApplicationSections,
+  generateSection,
+  APPLICATION_SECTIONS,
+  PERSONAL_APPLICATION_SECTIONS,
+} from "@/lib/ai";
 
 export async function GET(request: NextRequest) {
   const userId = await requireAuth();
@@ -66,20 +78,53 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Opportunity not found" }, { status: 404 });
   }
 
-  // Get the user's org profile
-  const [profile] = await db
+  // Decide mode: "personal" if opportunity audience is personal, else "org".
+  // Fetch the appropriate profile.
+  const isPersonalAudience =
+    (opp.audience || "").toLowerCase() === "personal";
+
+  const [orgProfile] = await db
     .select()
     .from(userProfiles)
     .where(eq(userProfiles.userId, userId))
     .limit(1);
 
-  if (!profile) {
-    return Response.json({ error: "Please set up your organization profile first." }, { status: 400 });
+  const [personalProfile] = await db
+    .select()
+    .from(personalProfiles)
+    .where(eq(personalProfiles.userId, userId))
+    .limit(1);
+
+  // Mode selection: prefer opportunity audience signal, fall back to whichever
+  // profile the user has filled out. If both/neither, default to org.
+  let mode: "org" | "personal";
+  let profile: Record<string, unknown> | undefined;
+  if (isPersonalAudience && personalProfile) {
+    mode = "personal";
+    profile = personalProfile as unknown as Record<string, unknown>;
+  } else if (orgProfile) {
+    mode = "org";
+    profile = orgProfile as unknown as Record<string, unknown>;
+  } else if (personalProfile) {
+    mode = "personal";
+    profile = personalProfile as unknown as Record<string, unknown>;
+  } else {
+    return Response.json(
+      {
+        error: isPersonalAudience
+          ? "Please set up your personal profile first."
+          : "Please set up your organization profile first.",
+      },
+      { status: 400 }
+    );
   }
+
+  const sectionsTemplate =
+    mode === "personal" ? PERSONAL_APPLICATION_SECTIONS : APPLICATION_SECTIONS;
 
   try {
     if (action === "generate_all") {
-      const sections = await generateApplicationSections(profile, opp);
+      const sections = await generateApplicationSections(profile, opp, mode);
 
       // Upsert all sections
       for (let i = 0; i < sections.length; i++) {
@@ -106,8 +151,8 @@ export async function POST(request: NextRequest) {
       }
 
       // Create empty sections for any missing standard sections
-      for (let i = 0; i < APPLICATION_SECTIONS.length; i++) {
-        const def = APPLICATION_SECTIONS[i];
+      for (let i = 0; i < sectionsTemplate.length; i++) {
+        const def = sectionsTemplate[i];
         const exists = sections.find((s) => s.key === def.key);
         if (!exists) {
           await db
@@ -139,7 +184,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "regenerate_section" && section_key) {
-      const sectionDef = APPLICATION_SECTIONS.find((s) => s.key === section_key);
+      const sectionDef = sectionsTemplate.find((s) => s.key === section_key);
       if (!sectionDef) {
         return Response.json({ error: "Unknown section" }, { status: 400 });
       }
@@ -155,7 +200,13 @@ export async function POST(request: NextRequest) {
         )
         .limit(1);
 
-      const content = await generateSection(profile, opp, sectionDef.prompt, existing?.content || undefined);
+      const content = await generateSection(
+        profile,
+        opp,
+        sectionDef.prompt,
+        existing?.content || undefined,
+        mode
+      );
 
       await db
         .update(applicationSections)
