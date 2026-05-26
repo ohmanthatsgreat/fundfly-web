@@ -129,23 +129,16 @@ export default function OpportunityList({
     });
   }
 
-  async function handleStartApplication(id: string) {
-    await fetch("/api/app/applications", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ opportunityId: id }),
-    });
-    setSelected(null);
-    router.push("/app/applications");
-  }
-
+  /**
+   * Single "Start Application" CTA — always creates a tracker row and opens
+   * the workspace. Free users land on the workspace too; the AI features
+   * inside the workspace are individually gated (will prompt to upgrade
+   * when the user clicks generate, etc.).
+   *
+   * "Save" handles the "I'm interested, come back later" use case via the
+   * Saved folder. There's no separate "track" action.
+   */
   async function handleNextStep(opp: Opportunity) {
-    const hasChecklist = userPlan && ["checklist", "auto_submission", "bundle"].includes(userPlan);
-    if (!hasChecklist) {
-      setUpgradeFeature("checklist");
-      setShowUpgrade(true);
-      return;
-    }
     const res = await fetch("/api/app/applications", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -155,8 +148,12 @@ export default function OpportunityList({
     const appId = data.application?.id;
     if (!appId) return;
 
-    const hasAutoSub = ["auto_submission", "bundle"].includes(userPlan);
+    // Auto-submission users default to the submission view (one extra step
+    // closer to their goal); everyone else opens the workspace.
+    const hasAutoSub =
+      !!userPlan && ["auto_submission", "bundle"].includes(userPlan);
     const view = hasAutoSub ? "submission" : "workspace";
+    setSelected(null);
     router.push(`/app/applications?id=${appId}&view=${view}`);
   }
 
@@ -362,7 +359,6 @@ export default function OpportunityList({
           onClose={() => setSelected(null)}
           onSave={handleSave}
           onUnsave={handleUnsave}
-          onStartApplication={handleStartApplication}
           onNextStep={handleNextStep}
           onSelectSimilar={(opp) => setSelected(opp)}
         />

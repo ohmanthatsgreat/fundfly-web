@@ -207,13 +207,12 @@ export default function MatchesPage() {
     });
   }
 
+  /**
+   * Single "Start Application" CTA — always creates a tracker row and opens
+   * the workspace. AI features inside the workspace are individually gated.
+   * No upgrade gate here so free users can also start an application.
+   */
   async function handleNextStep(opp: Opportunity) {
-    const hasChecklist = userPlan && ["checklist", "auto_submission", "bundle"].includes(userPlan);
-    if (!hasChecklist) {
-      setUpgradeFeature("checklist");
-      setShowUpgrade(true);
-      return;
-    }
     const res = await fetch("/api/app/applications", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -223,7 +222,8 @@ export default function MatchesPage() {
     const appId = data.application?.id;
     if (!appId) return;
 
-    const hasAutoSub = userPlan && ["auto_submission", "bundle"].includes(userPlan);
+    const hasAutoSub =
+      !!userPlan && ["auto_submission", "bundle"].includes(userPlan);
     const view = hasAutoSub ? "submission" : "workspace";
     router.push(`/app/applications?id=${appId}&view=${view}`);
   }
@@ -518,7 +518,6 @@ export default function MatchesPage() {
           onClose={() => setSelected(null)}
           onSave={handleSave}
           onUnsave={handleUnsave}
-          onStartApplication={() => handleNextStep(selected)}
           onSelectSimilar={(opp) => setSelected(opp)}
         />
       )}

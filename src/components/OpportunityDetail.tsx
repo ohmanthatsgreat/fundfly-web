@@ -143,7 +143,6 @@ export default function OpportunityDetail({
   onClose,
   onSave,
   onUnsave,
-  onStartApplication,
   onNextStep,
   onSelectSimilar,
 }: {
@@ -152,7 +151,6 @@ export default function OpportunityDetail({
   onClose: () => void;
   onSave: (id: string) => void;
   onUnsave: (id: string) => void;
-  onStartApplication?: (id: string) => void;
   onNextStep?: (opp: Opportunity) => void;
   onSelectSimilar?: (opp: Opportunity) => void;
 }) {
@@ -557,23 +555,12 @@ export default function OpportunityDetail({
             {isSaved ? "Saved" : "Save"}
           </button>
 
-          {onStartApplication && (
-            <button
-              onClick={() => onStartApplication(opp.id)}
-              className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium text-muted hover:text-foreground bg-surface hover:bg-card border border-border rounded-lg transition-all duration-150"
-            >
-              Track
-              <ArrowRight size={13} />
-            </button>
-          )}
-
           {onNextStep && (
             <button
               onClick={() => onNextStep(opp)}
               className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-all duration-150"
             >
-              <span className="sm:hidden">Submit</span>
-              <span className="hidden sm:inline">Start Submission</span>
+              Start Application
               <ArrowRight size={13} />
             </button>
           )}
