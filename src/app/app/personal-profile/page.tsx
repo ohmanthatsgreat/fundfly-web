@@ -258,7 +258,7 @@ export default function PersonalProfilePage() {
     "w-full px-3 py-2.5 bg-surface border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 transition-all placeholder:text-muted/40";
 
   return (
-    <div className="p-6 max-w-3xl space-y-8">
+    <div className="p-4 md:p-6 max-w-3xl space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -309,7 +309,7 @@ export default function PersonalProfilePage() {
           <h3 className="text-[11px] font-semibold text-muted uppercase tracking-wider">
             {group.title}
           </h3>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {group.fields.map((field) => (
               <div
                 key={field.key}

@@ -119,7 +119,7 @@ export default function OrganizationPage() {
   const certList = ((profile.certifications as string) || "").split(", ").filter(Boolean);
 
   return (
-    <div className="p-6 max-w-3xl space-y-8">
+    <div className="p-4 md:p-6 max-w-3xl space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -166,7 +166,7 @@ export default function OrganizationPage() {
         <h3 className="text-[11px] font-semibold text-muted uppercase tracking-wider">
           Organization
         </h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="col-span-2">
             <label className={labelClass}>Organization Name</label>
             <input
@@ -331,7 +331,7 @@ export default function OrganizationPage() {
         <h3 className="text-[11px] font-semibold text-muted uppercase tracking-wider">
           Certifications & Readiness
         </h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="col-span-2">
             <label className={labelClass}>Certifications (select all that apply)</label>
             <div className="grid grid-cols-2 gap-2 mt-1">
@@ -382,7 +382,7 @@ export default function OrganizationPage() {
         <h3 className="text-[11px] font-semibold text-muted uppercase tracking-wider">
           Registration
         </h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>EIN</label>
             <input
@@ -431,7 +431,7 @@ export default function OrganizationPage() {
         <h3 className="text-[11px] font-semibold text-muted uppercase tracking-wider">
           Address
         </h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="col-span-2">
             <label className={labelClass}>Street Address</label>
             <input
@@ -450,7 +450,7 @@ export default function OrganizationPage() {
               className={inputClass}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>State</label>
               <input
@@ -480,7 +480,7 @@ export default function OrganizationPage() {
         <h3 className="text-[11px] font-semibold text-muted uppercase tracking-wider">
           Primary Contact
         </h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Full Name</label>
             <input

@@ -163,7 +163,13 @@ export default function GuidedTour({ onClose }: { onClose: () => void }) {
   const isLast = currentStep === TOUR_STEPS.length - 1;
 
   const positionTooltip = useCallback(() => {
-    if (step.position === "center") {
+    // On mobile, the left sidebar is hidden behind a hamburger so nav-targeted
+    // spotlights don't make sense. Force center for every step and skip the
+    // spotlight overlay. Breakpoint matches Tailwind's `md` (768px).
+    const isMobile =
+      typeof window !== "undefined" && window.innerWidth < 768;
+
+    if (step.position === "center" || isMobile) {
       setShowSpotlight(false);
       setTooltipStyle({
         position: "fixed",
@@ -275,10 +281,10 @@ export default function GuidedTour({ onClose }: { onClose: () => void }) {
         />
       )}
 
-      {/* Tooltip */}
+      {/* Tooltip — caps at 380px on desktop but shrinks to fit small phones with 16px gutter each side */}
       <div
         ref={tooltipRef}
-        className="z-[10000] w-[380px] bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
+        className="z-[10000] w-[min(380px,calc(100vw-32px))] bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
         style={tooltipStyle}
       >
         {/* Progress bar */}
@@ -307,7 +313,8 @@ export default function GuidedTour({ onClose }: { onClose: () => void }) {
             </div>
             <button
               onClick={handleSkip}
-              className="p-1 rounded-md text-muted hover:text-foreground hover:bg-surface transition-colors shrink-0"
+              aria-label="Skip tour"
+              className="-mr-2 -mt-2 p-2.5 rounded-md text-muted hover:text-foreground hover:bg-surface transition-colors shrink-0"
             >
               <X size={16} />
             </button>

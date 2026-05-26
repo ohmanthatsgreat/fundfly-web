@@ -378,6 +378,11 @@ export default function AdminPage() {
   );
   const [stripeBypass, setStripeBypass] = useState(false);
   const [bypassLoading, setBypassLoading] = useState(true);
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<{
+    totalClerk: number;
+    inserted: number;
+  } | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -420,6 +425,36 @@ export default function AdminPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ enabled: next }),
     });
+  }
+
+  async function handleBackfillUsers() {
+    if (
+      !confirm(
+        "Pull all Clerk users into the customers table? Safe to re-run; only inserts missing rows."
+      )
+    )
+      return;
+    setBackfilling(true);
+    setBackfillResult(null);
+    try {
+      const res = await fetch("/api/admin/backfill-customers", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setBackfillResult({
+          totalClerk: data.totalClerk,
+          inserted: data.inserted,
+        });
+        // refresh user list to show new rows
+        loadData();
+      } else {
+        alert(data.error || "Backfill failed");
+      }
+    } catch {
+      alert("Network error during backfill");
+    }
+    setBackfilling(false);
   }
 
   async function handleSync() {
@@ -716,7 +751,7 @@ export default function AdminPage() {
 
       {/* Users Table */}
       <div className="bg-card border border-border rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-3">
             <Users className="w-5 h-5 text-accent" />
             <h2 className="font-semibold">
@@ -725,6 +760,26 @@ export default function AdminPage() {
                 ({filteredUsers.length})
               </span>
             </h2>
+            <button
+              onClick={handleBackfillUsers}
+              disabled={backfilling}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted hover:text-foreground border border-border rounded-md hover:bg-surface transition-colors disabled:opacity-50"
+              title="Pull any Clerk users missing from the customers table"
+            >
+              {backfilling ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="w-3.5 h-3.5" />
+              )}
+              {backfilling ? "Syncing..." : "Sync from Clerk"}
+            </button>
+            {backfillResult && (
+              <span className="text-xs text-muted">
+                {backfillResult.inserted > 0
+                  ? `Added ${backfillResult.inserted} (of ${backfillResult.totalClerk} in Clerk)`
+                  : `All ${backfillResult.totalClerk} Clerk users already in sync`}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1 bg-surface border border-border rounded-lg p-0.5">
             {(["all", "subscribed", "free"] as const).map((f) => (
