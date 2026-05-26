@@ -116,7 +116,7 @@ const TOUR_STEPS: TourStep[] = [
     target: "nav-applications",
     title: "9. Application Tracker",
     description:
-      'Track every application from draft through submission. Click "Track Application" on any opportunity to start, then open the workspace to build your application with AI.',
+      'Track every application from draft through submission. Click "Start Application" (or "Apply" on a card) on any opportunity to create a tracker entry, then open the workspace to build your application with AI.',
     icon: ClipboardList,
     position: "right",
     route: "/app/applications",

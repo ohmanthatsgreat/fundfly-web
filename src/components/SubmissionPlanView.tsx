@@ -576,8 +576,8 @@ export default function SubmissionPlanView({
             </p>
             <p className="text-xs text-muted mt-1">
               Claude is analyzing the opportunity, eligibility rules, and
-              every portal involved. Research time varies based on
-              opportunity complexity.
+              every portal involved. This usually takes 30 seconds to 5
+              minutes depending on opportunity complexity.
             </p>
           </div>
         </div>
@@ -689,7 +689,7 @@ export default function SubmissionPlanView({
                   ? "Download a formatted DOCX of your application from the workspace, then email it to the recipient below."
                   : submissionMethod === "mail"
                     ? "Download a formatted DOCX of your application, print it, and mail it to the address below."
-                    : "Some parts are online (browser agent can help); other parts must be emailed or mailed manually.")}
+                    : "Some parts are online (auto-submission can help); other parts must be emailed or mailed manually.")}
             </p>
             {planData.submission_email && (
               <p className="text-xs">

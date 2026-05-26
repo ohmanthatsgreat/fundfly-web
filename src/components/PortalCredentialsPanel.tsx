@@ -420,7 +420,7 @@ function PortalRow({
             </button>
           </div>
           <p className="text-[10px] text-muted leading-relaxed">
-            Encrypted with AES-256-GCM. Used only by the submission agent when it
+            Encrypted with AES-256-GCM. Used only by auto-submission when it
             hits a login page on this domain.
           </p>
         </div>

@@ -527,7 +527,7 @@ export default function ApplicationWorkspace({
             onClick={() => setShowSubmission(true)}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-border text-muted hover:text-foreground rounded-lg hover:bg-surface transition-all duration-150"
           >
-            <Globe size={14} /> Research Submission Plan
+            <Globe size={14} /> Create Pre-Submission Checklist
           </button>
         </div>
       )}
