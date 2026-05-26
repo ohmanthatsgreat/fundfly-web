@@ -530,13 +530,14 @@ export default function SubmissionPlanView({
             <Globe size={28} className="text-accent" />
           </div>
           <h3 className="text-base font-semibold mb-2">
-            Submission Agent
+            Pre-Submission Checklist
           </h3>
           <p className="text-sm text-muted max-w-md mb-6">
-            The AI will research the submission requirements for this
-            opportunity and create a step-by-step plan across all required
-            government portals. You&apos;ll review and approve before any
-            automation begins.
+            The AI will research the requirements for this opportunity and
+            build a step-by-step checklist of everything you need to submit —
+            documents, registrations, eligibility checks, and the portals
+            involved. You&apos;ll review the full list before any automation
+            begins.
           </p>
           <button
             onClick={handleGeneratePlan}
@@ -544,7 +545,7 @@ export default function SubmissionPlanView({
             className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-accent to-purple-500 text-white text-sm font-medium rounded-lg hover:opacity-90 transition-all duration-150 disabled:opacity-50"
           >
             <Sparkles size={16} />
-            Research Submission Plan
+            Create Pre-Submission Checklist
           </button>
         </div>
         {showUpgrade && (
@@ -571,11 +572,12 @@ export default function SubmissionPlanView({
           <Loader2 size={24} className="animate-spin text-accent" />
           <div>
             <p className="text-sm font-medium">
-              Researching submission requirements...
+              Building your pre-submission checklist…
             </p>
             <p className="text-xs text-muted mt-1">
-              Claude is analyzing the opportunity type, agency, and
-              required portals. This may take 15-30 seconds.
+              Claude is analyzing the opportunity, eligibility rules, and
+              every portal involved. Research time varies based on
+              opportunity complexity.
             </p>
           </div>
         </div>
@@ -607,9 +609,10 @@ export default function SubmissionPlanView({
             <button
               onClick={handleStartAgent}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm font-medium rounded-lg hover:opacity-90 transition-all duration-150"
+              title="Runs in the background on our servers — no visible browser window will open on your computer"
             >
               <Play size={14} />
-              Launch Browser Agent
+              Start Auto-Submission
             </button>
           )}
           {planStatus === "pending" && !isOnlineSubmission && (
@@ -777,9 +780,9 @@ export default function SubmissionPlanView({
             </h4>
           </div>
           <p className="text-sm text-foreground/60">
-            Before launching the browser agent, generate your application
-            content. The agent will use these sections to fill out portal
-            forms during submission.
+            Before auto-submission begins, generate your application content.
+            The agent will use these sections to fill out portal forms during
+            submission.
           </p>
           <button
             onClick={onGenerateSections}
@@ -801,12 +804,18 @@ export default function SubmissionPlanView({
       )}
 
       {hasSections && !isRunning && !isComplete && planStatus === "pending" && (
-        <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-100 border border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/20 rounded-xl px-4 py-3">
-          <CheckCircle size={16} className="shrink-0" />
-          <span>
-            Application content is ready. You can launch the browser agent
-            to begin submission.
-          </span>
+        <div className="flex items-start gap-2 text-sm text-emerald-700 dark:text-emerald-400 bg-emerald-50 border border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/20 rounded-xl px-4 py-3">
+          <CheckCircle size={16} className="shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium">Application content is ready.</p>
+            <p className="text-xs mt-1 text-emerald-700/80 dark:text-emerald-300/80">
+              Click <strong>Start Auto-Submission</strong> above to begin.
+              The browser runs in the background on our servers — you
+              don&apos;t need to keep this tab open or watch for any popup.
+              You&apos;ll see live progress updates here, and we&apos;ll pause
+              for your approval before anything is submitted.
+            </p>
+          </div>
         </div>
       )}
 
