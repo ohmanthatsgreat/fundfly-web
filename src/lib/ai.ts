@@ -187,7 +187,7 @@ export async function matchPersonalOpportunities(
       messages: [
         {
           role: "user",
-          content: `You are an expert grant matching analyst specializing in personal grants, scholarships, and individual funding opportunities. Analyze each opportunity below against this individual's profile and determine relevance.
+          content: `You are an expert grant matching analyst specializing in personal grants, scholarships, fellowships, and individual funding opportunities. Analyze each opportunity below against this individual's profile and determine relevance.
 
 INDIVIDUAL PROFILE:
 ${personalSummary}
@@ -195,11 +195,20 @@ ${personalSummary}
 OPPORTUNITIES TO EVALUATE:
 ${oppList}
 
+CRITICAL: This is a PERSONAL grant search. You are scoring opportunities for an INDIVIDUAL applicant, not an organization. **Score 0-20 (effectively "not a match") any opportunity that:**
+- Requires the applicant to be a registered nonprofit, 501(c)(3), school, business, or other organization
+- Requires an EIN, UEI, SAM.gov registration, or DUNS number
+- Is described as "small business," "entrepreneurship," "research institution," or "501(c) organization" funding
+- Lists eligible applicants as agencies, governments, tribes, or organizations rather than individuals
+- Is for capacity-building or operational support of a nonprofit
+
+ONLY score 40+ if the opportunity is genuinely available to individuals applying for themselves — artists, students, researchers acting as individuals, people in hardship, demographic-specific aid recipients, fellowship applicants, scholarship recipients.
+
 For each opportunity, respond with a JSON array. Each element must have:
 - "opportunity_id": the ID from the opportunity
 - "score": relevance score from 0-100 (0 = not relevant, 100 = perfect match)
 - "summary": 1-2 sentence summary of what this opportunity funds
-- "match_reasoning": 2-3 sentences explaining why this is or isn't a good match for this individual
+- "match_reasoning": 2-3 sentences explaining why this is or isn't a good match for this individual. If the opportunity is org-only, explicitly say so.
 
 Only include opportunities with a score of 40 or higher. Respond with ONLY the JSON array, no other text.`,
         },

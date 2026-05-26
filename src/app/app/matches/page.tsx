@@ -17,6 +17,46 @@ interface Match {
   opportunity: Opportunity;
 }
 
+/**
+ * Best-effort progress bar for the AI matching scan.
+ * The underlying API call is one big batched fetch with no per-opportunity
+ * progress events. We estimate ~90s for a full 500-opp scan (25 batches of 20
+ * at ~3.6s each) and animate to ~95% by then, holding short of 100% until
+ * the response actually returns. Reassures the user that things are moving.
+ */
+function ScanProgressBar({
+  elapsedMs,
+  mode,
+}: {
+  elapsedMs: number;
+  mode: "org" | "personal";
+}) {
+  const estimatedTotalMs = 90_000; // ~90s baseline for a 500-opp scan
+  const pct = Math.min(95, (elapsedMs / estimatedTotalMs) * 95);
+  const elapsedSec = Math.floor(elapsedMs / 1000);
+  return (
+    <div className="bg-card border border-border rounded-xl p-4 mb-4">
+      <div className="flex items-center justify-between mb-2 text-xs">
+        <span className="text-foreground/80 font-medium">
+          Scoring opportunities against your {mode === "personal" ? "personal" : "organization"} profile…
+        </span>
+        <span className="text-muted tabular-nums">
+          {elapsedSec}s elapsed
+        </span>
+      </div>
+      <div className="h-2 w-full rounded-full bg-surface overflow-hidden">
+        <div
+          className="h-full bg-gradient-to-r from-accent to-purple-500 transition-all duration-300 ease-out"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <p className="text-[11px] text-muted mt-2">
+        Usually takes 1–2 minutes. Scoring up to 500 opportunities per scan.
+      </p>
+    </div>
+  );
+}
+
 export default function MatchesPage() {
   const router = useRouter();
   const [matches, setMatches] = useState<Match[]>([]);
@@ -27,7 +67,31 @@ export default function MatchesPage() {
   const [upgradeFeature, setUpgradeFeature] = useState<"matching" | "checklist">("matching");
   const [hasMore, setHasMore] = useState(false);
   const [nextOffset, setNextOffset] = useState(0);
-  const [lastScanned, setLastScanned] = useState(0);
+  // Cumulative count of opportunities scanned across all batches in this
+  // session for the current mode. Resets on mode switch or "Re-scan from Start".
+  const [totalScanned, setTotalScanned] = useState(0);
+  const [totalAvailable, setTotalAvailable] = useState(0);
+  // Elapsed time for the in-flight scan, used to animate the progress bar
+  // since the underlying API is one big batch with no per-opp progress event.
+  const [scanStartedAt, setScanStartedAt] = useState<number | null>(null);
+  const [scanElapsedMs, setScanElapsedMs] = useState(0);
+
+  // Reset cumulative scanned when the user switches mode
+  useEffect(() => {
+    setTotalScanned(0);
+  }, [mode]);
+
+  // Tick elapsed time during a scan
+  useEffect(() => {
+    if (!running || scanStartedAt === null) {
+      setScanElapsedMs(0);
+      return;
+    }
+    const t = setInterval(() => {
+      setScanElapsedMs(Date.now() - scanStartedAt);
+    }, 200);
+    return () => clearInterval(t);
+  }, [running, scanStartedAt]);
   const [expandedReasons, setExpandedReasons] = useState<Set<number>>(new Set());
   const [userPlan, setUserPlan] = useState<string | null>(null);
   const [selected, setSelected] = useState<Opportunity | null>(null);
@@ -94,6 +158,8 @@ export default function MatchesPage() {
 
   async function runMatch(reset = false) {
     setRunning(true);
+    setScanStartedAt(Date.now());
+    if (reset) setTotalScanned(0);
     try {
       const res = await fetch("/api/app/ai-match", {
         method: "POST",
@@ -108,18 +174,25 @@ export default function MatchesPage() {
       if (data.error === "subscription_required") {
         setShowUpgrade(true);
         setRunning(false);
+        setScanStartedAt(null);
         return;
       }
       if (data.error) {
         setRunning(false);
+        setScanStartedAt(null);
         return;
       }
       setHasMore(data.hasMore ?? false);
       setNextOffset(data.nextOffset ?? 0);
-      setLastScanned(data.scanned ?? 0);
+      // Cumulative: add this batch's scanned to running total
+      setTotalScanned((prev) => (reset ? 0 : prev) + (data.scanned ?? 0));
+      if (typeof data.totalAvailable === "number") {
+        setTotalAvailable(data.totalAvailable);
+      }
       await fetchMatches();
     } catch {}
     setRunning(false);
+    setScanStartedAt(null);
   }
 
   function toggleReason(matchId: number) {
@@ -270,7 +343,7 @@ export default function MatchesPage() {
                 <p className="text-sm font-medium">Click &ldquo;Run AI Match&rdquo;</p>
                 <p className="text-xs text-muted mt-0.5">
                   We score opportunities <strong>500 at a time</strong> to
-                  manage AI cost. Each scan takes ~30 seconds.
+                  manage AI cost. Each scan takes about 1–2 minutes.
                 </p>
               </div>
             </div>
@@ -315,43 +388,59 @@ export default function MatchesPage() {
       ) : (
         <>
           {/* Results summary */}
-          <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
-            <div>
+          <div className="flex items-center justify-between mb-4 pb-3 border-b border-border gap-3">
+            <div className="min-w-0">
               <p className="text-sm">
                 <span className="font-semibold">{matches.length}</span>{" "}
                 <span className="text-muted">
                   {matches.length === 1 ? "match" : "matches"}
                 </span>
-                {lastScanned > 0 && (
+                {totalScanned > 0 && (
                   <>
                     <span className="text-muted"> from </span>
                     <span className="font-semibold">
-                      {lastScanned.toLocaleString()}
+                      {totalScanned.toLocaleString()}
                     </span>
                     <span className="text-muted">
                       {" "}
-                      opportunit{lastScanned === 1 ? "y" : "ies"} scanned
+                      scanned
+                      {totalAvailable > 0 && (
+                        <>
+                          {" "}
+                          of{" "}
+                          <span className="font-semibold text-foreground">
+                            {totalAvailable.toLocaleString()}
+                          </span>{" "}
+                          available
+                        </>
+                      )}
                     </span>
                   </>
                 )}
               </p>
-              {hasMore && (
+              {hasMore && !running && (
                 <p className="text-xs text-muted mt-0.5">
-                  More opportunities available — click &ldquo;Keep Searching&rdquo;
-                  below to scan the next batch
+                  {totalAvailable - totalScanned > 0
+                    ? `${(totalAvailable - totalScanned).toLocaleString()} more to scan — click "Keep Searching" below`
+                    : "More opportunities available — click “Keep Searching” below"}
                 </p>
               )}
             </div>
             <button
               onClick={() => runMatch(true)}
               disabled={running}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted hover:text-foreground border border-border rounded-md hover:bg-surface transition-colors disabled:opacity-50"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted hover:text-foreground border border-border rounded-md hover:bg-surface transition-colors disabled:opacity-50 shrink-0"
               title="Re-scan from the start with the current profile"
             >
               <RotateCcw size={11} />
               Re-scan from Start
             </button>
           </div>
+
+          {/* Live scan progress */}
+          {running && (
+            <ScanProgressBar elapsedMs={scanElapsedMs} mode={mode} />
+          )}
 
           <div className="space-y-3">
             {matches.map((m) => (
@@ -407,7 +496,7 @@ export default function MatchesPage() {
               </button>
             </div>
           )}
-          {lastScanned > 0 && !hasMore && matches.length > 0 && (
+          {totalScanned > 0 && !hasMore && matches.length > 0 && (
             <p className="text-center text-xs text-muted mt-4">
               All available opportunities have been scanned.
             </p>

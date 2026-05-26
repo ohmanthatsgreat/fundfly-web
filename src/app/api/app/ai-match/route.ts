@@ -8,7 +8,7 @@ import {
   personalProfiles,
   dismissedOpportunities,
 } from "@/lib/db";
-import { eq, and, notInArray } from "drizzle-orm";
+import { eq, and, notInArray, inArray, sql } from "drizzle-orm";
 import { matchOpportunities, matchPersonalOpportunities } from "@/lib/ai";
 
 export async function POST(request: NextRequest) {
@@ -79,6 +79,29 @@ export async function POST(request: NextRequest) {
 
   const excludeIds = [...new Set([...dismissedIds, ...matchedIds])];
 
+  // Audience filter:
+  //   personal mode → personal + both (skip business-only grants)
+  //   org mode      → business + both (skip personal-only grants)
+  // "both" is included in both to handle Zeffy grants that genuinely fit either.
+  const audienceValues =
+    mode === "personal" ? ["personal", "both"] : ["business", "both"];
+
+  // Compose WHERE: status open + audience + not-excluded
+  const whereClause = and(
+    eq(opportunities.status, "open"),
+    inArray(opportunities.audience, audienceValues),
+    excludeIds.length > 0
+      ? notInArray(opportunities.id, excludeIds)
+      : undefined
+  );
+
+  // Total available opportunities in this audience/status (for "X of Y" display)
+  const [totalRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(opportunities)
+    .where(whereClause);
+  const totalAvailable = totalRow?.count ?? 0;
+
   // Load opportunities to score (paginated batch)
   const allOpps = await db
     .select({
@@ -94,11 +117,7 @@ export async function POST(request: NextRequest) {
       cfdaNumber: opportunities.cfdaNumber,
     })
     .from(opportunities)
-    .where(
-      excludeIds.length > 0
-        ? notInArray(opportunities.id, excludeIds)
-        : undefined
-    )
+    .where(whereClause)
     .offset(reset ? 0 : offset)
     .limit(BATCH_LIMIT);
 
@@ -108,6 +127,8 @@ export async function POST(request: NextRequest) {
     return Response.json({
       success: true,
       matchesProcessed: 0,
+      scanned: 0,
+      totalAvailable,
       hasMore: false,
       nextOffset: 0,
       message: "No more opportunities to scan.",
@@ -152,6 +173,7 @@ export async function POST(request: NextRequest) {
       success: true,
       matchesProcessed: totalMatches,
       scanned: allOpps.length,
+      totalAvailable,
       hasMore,
       nextOffset: (reset ? 0 : offset) + BATCH_LIMIT,
     });
