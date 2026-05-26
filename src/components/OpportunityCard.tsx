@@ -194,7 +194,10 @@ export default function OpportunityCard({
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="p-2 rounded-lg hover:bg-surface transition-colors"
+              // Hidden on mobile — same destination is reachable from the
+              // detail panel via "View on Grants.gov", and 3 actions per card
+              // is too dense on a narrow viewport.
+              className="hidden sm:inline-flex p-2 rounded-lg hover:bg-surface transition-colors"
               title="View original"
             >
               <ExternalLink className="w-4 h-4 text-muted" />

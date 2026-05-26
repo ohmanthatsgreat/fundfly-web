@@ -539,11 +539,11 @@ export default function OpportunityDetail({
           )}
         </div>
 
-        {/* Footer actions */}
-        <div className="flex items-center gap-2 p-4 border-t border-border shrink-0 bg-card/50">
+        {/* Footer actions — 2x2 grid on mobile, single row on desktop */}
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 p-4 border-t border-border shrink-0 bg-card/50">
           <button
             onClick={() => (isSaved ? onUnsave(opp.id) : onSave(opp.id))}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-150 ${
+            className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-150 ${
               isSaved
                 ? "text-accent bg-accent/10 border border-accent/30"
                 : "text-muted hover:text-foreground bg-surface hover:bg-card border border-border"
@@ -560,9 +560,9 @@ export default function OpportunityDetail({
           {onStartApplication && (
             <button
               onClick={() => onStartApplication(opp.id)}
-              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-muted hover:text-foreground bg-surface hover:bg-card border border-border rounded-lg transition-all duration-150"
+              className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium text-muted hover:text-foreground bg-surface hover:bg-card border border-border rounded-lg transition-all duration-150"
             >
-              Track Application
+              Track
               <ArrowRight size={13} />
             </button>
           )}
@@ -570,9 +570,10 @@ export default function OpportunityDetail({
           {onNextStep && (
             <button
               onClick={() => onNextStep(opp)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-all duration-150"
+              className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-all duration-150"
             >
-              Start Submission
+              <span className="sm:hidden">Submit</span>
+              <span className="hidden sm:inline">Start Submission</span>
               <ArrowRight size={13} />
             </button>
           )}
@@ -582,9 +583,12 @@ export default function OpportunityDetail({
               href={getOpportunityUrl(opp)!}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-muted hover:text-foreground bg-surface hover:bg-card border border-border rounded-lg transition-all duration-150 ml-auto"
+              className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium text-muted hover:text-foreground bg-surface hover:bg-card border border-border rounded-lg transition-all duration-150 sm:ml-auto"
             >
-              {isGrantsGov ? "View on Grants.gov" : "Apply Now"}
+              <span className="sm:hidden">View source</span>
+              <span className="hidden sm:inline">
+                {isGrantsGov ? "View on Grants.gov" : "Apply Now"}
+              </span>
               <ExternalLink size={13} />
             </a>
           )}

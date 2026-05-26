@@ -51,7 +51,7 @@ function ScanProgressBar({
         />
       </div>
       <p className="text-[11px] text-muted mt-2">
-        Usually takes 1–2 minutes. Scoring up to 500 opportunities per scan.
+        Scan time varies based on the number of opportunities in this batch.
       </p>
     </div>
   );
@@ -229,8 +229,8 @@ export default function MatchesPage() {
   }
 
   return (
-    <div className="p-6 max-w-5xl">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 md:p-6 max-w-5xl">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold">AI Matches</h1>
           <p className="text-sm text-muted mt-1">
@@ -238,22 +238,23 @@ export default function MatchesPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {matches.length > 0 && (
             <button
               onClick={() => runMatch(true)}
               disabled={running}
-              className="inline-flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium border border-border text-muted hover:text-foreground hover:bg-surface transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium border border-border text-muted hover:text-foreground hover:bg-surface transition-colors disabled:opacity-50 whitespace-nowrap"
               title="Clear existing matches and start fresh"
             >
               <RotateCcw className="w-4 h-4" />
-              Re-scan from Start
+              <span className="hidden sm:inline">Re-scan from Start</span>
+              <span className="sm:hidden">Re-scan</span>
             </button>
           )}
           <button
             onClick={() => runMatch(false)}
             disabled={running}
-            className="inline-flex items-center gap-2 bg-accent text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-2 bg-accent text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-50 whitespace-nowrap"
           >
             {running ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -343,7 +344,8 @@ export default function MatchesPage() {
                 <p className="text-sm font-medium">Click &ldquo;Run AI Match&rdquo;</p>
                 <p className="text-xs text-muted mt-0.5">
                   We score opportunities <strong>500 at a time</strong> to
-                  manage AI cost. Each scan takes about 1–2 minutes.
+                  manage AI cost. Scan time varies depending on how many
+                  opportunities are in the batch.
                 </p>
               </div>
             </div>

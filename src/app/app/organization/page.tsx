@@ -334,7 +334,7 @@ export default function OrganizationPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="col-span-2">
             <label className={labelClass}>Certifications (select all that apply)</label>
-            <div className="grid grid-cols-2 gap-2 mt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
               {CERTIFICATIONS.map((cert) => {
                 const checked = certList.includes(cert);
                 return (
