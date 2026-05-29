@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import type { Opportunity } from "./OpportunityCard";
 import { checkEligibility } from "@/lib/eligibility";
+import { parseDeadline, daysUntilDeadline } from "@/lib/dates";
 import {
   X,
   ExternalLink,
@@ -36,22 +37,14 @@ function formatCurrency(n: number | null) {
 }
 
 function formatDate(d: string | null) {
-  if (!d) return null;
-  try {
-    return new Date(d).toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-  } catch {
-    return d;
-  }
-}
-
-function daysUntil(d: string | null) {
-  if (!d) return null;
-  return Math.ceil((new Date(d).getTime() - Date.now()) / 86400000);
+  const parsed = parseDeadline(d);
+  if (!parsed) return null;
+  return parsed.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 /** Construct the canonical public URL for an opportunity. */
@@ -227,7 +220,8 @@ export default function OpportunityDetail({
     fetchExtras();
   }, [fetchExtras]);
 
-  const days = daysUntil(opp.deadline);
+  const deadlineDate = parseDeadline(opp.deadline);
+  const days = daysUntilDeadline(opp.deadline);
   const isUrgent = days !== null && days >= 0 && days <= 7;
   const isPast = days !== null && days < 0;
 
@@ -362,7 +356,7 @@ export default function OpportunityDetail({
                 <p className="text-sm font-medium">{fundingRange}</p>
               </div>
             )}
-            {opp.deadline && (
+            {deadlineDate && (
               <div className="space-y-1">
                 <div className="flex items-center gap-1.5 text-xs text-muted">
                   <Clock size={12} />
@@ -378,7 +372,7 @@ export default function OpportunityDetail({
                 )}
               </div>
             )}
-            {!opp.deadline && (
+            {!deadlineDate && (
               <div className="space-y-1">
                 <div className="flex items-center gap-1.5 text-xs text-muted">
                   <Clock size={12} />
@@ -509,9 +503,9 @@ export default function OpportunityDetail({
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted">
                       {s.agency && <span>{s.agency}</span>}
                       {s.fundingMax && <span>{formatCurrency(s.fundingMax)}</span>}
-                      {s.deadline && (
+                      {parseDeadline(s.deadline) && (
                         <span>
-                          Due {new Date(s.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          Due {parseDeadline(s.deadline)!.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                         </span>
                       )}
                     </div>

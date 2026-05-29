@@ -104,9 +104,15 @@ export default function SettingsPage() {
                 {subscription.status}
               </span>
             </div>
-            <div className="text-sm text-muted">
-              Renews: {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
-            </div>
+            {(() => {
+              const renewsAt = new Date(subscription.currentPeriodEnd);
+              if (isNaN(renewsAt.getTime())) return null;
+              return (
+                <div className="text-sm text-muted">
+                  Renews: {renewsAt.toLocaleDateString()}
+                </div>
+              );
+            })()}
             <button
               onClick={openBillingPortal}
               disabled={portalLoading}

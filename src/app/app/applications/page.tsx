@@ -10,6 +10,7 @@ import {
   PenTool,
 } from "lucide-react";
 import ApplicationWorkspace from "@/components/ApplicationWorkspace";
+import { parseDeadline } from "@/lib/dates";
 
 interface Application {
   id: number;
@@ -235,12 +236,12 @@ function ApplicationsContent() {
                             )}
                           </div>
                         </div>
-                        {app.opportunityDeadline && (
+                        {parseDeadline(app.opportunityDeadline) && (
                           <span className="text-xs text-muted shrink-0">
                             Due{" "}
-                            {new Date(
+                            {parseDeadline(
                               app.opportunityDeadline
-                            ).toLocaleDateString("en-US", {
+                            )!.toLocaleDateString("en-US", {
                               month: "short",
                               day: "numeric",
                             })}

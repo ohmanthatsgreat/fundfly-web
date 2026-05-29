@@ -1,7 +1,7 @@
 "use client";
 
 import { Bookmark, BookmarkCheck, ExternalLink, ArrowRight } from "lucide-react";
-import { format, parseISO, isPast } from "date-fns";
+import { formatDeadline, isDeadlinePast } from "@/lib/dates";
 
 export interface Opportunity {
   id: string;
@@ -56,25 +56,6 @@ function formatFunding(min: number | null, max: number | null): string {
   return fmt(max || min || 0);
 }
 
-function formatDeadline(deadline: string | null): string {
-  if (!deadline) return "Rolling";
-  try {
-    const d = parseISO(deadline);
-    return format(d, "MMM d, yyyy");
-  } catch {
-    return deadline;
-  }
-}
-
-function isExpired(deadline: string | null): boolean {
-  if (!deadline) return false;
-  try {
-    return isPast(parseISO(deadline));
-  } catch {
-    return false;
-  }
-}
-
 export default function OpportunityCard({
   opportunity: opp,
   isSaved = false,
@@ -84,7 +65,7 @@ export default function OpportunityCard({
   onSelect,
   onNextStep,
 }: Props) {
-  const expired = isExpired(opp.deadline);
+  const expired = isDeadlinePast(opp.deadline);
 
   return (
     <div
