@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { recordCallCost } from "@/lib/ai-cost";
+import { recordCallCost, recordCallCostSync } from "@/lib/ai-cost";
 
 function getClient(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -104,18 +104,25 @@ export type MatchResult = {
   match_reasoning: string;
 };
 
+/** Matches plus the total AI cost (in cents) incurred to produce them. */
+export type MatchRun = {
+  matches: MatchResult[];
+  costCents: number;
+};
+
 export async function matchOpportunities(
   profile: ProfileLike,
   opportunities: OppLike[],
   batchSize = 20,
   userId: string | null = null
-): Promise<MatchResult[]> {
+): Promise<MatchRun> {
   const orgSummary = buildOrgSummary(profile);
   if (!orgSummary.includes("Mission") && !orgSummary.includes("Products") && !orgSummary.includes("Expertise")) {
     throw new Error("Please fill out your mission statement, products/services, or areas of expertise to enable AI matching.");
   }
 
   const allMatches: MatchResult[] = [];
+  let costCents = 0;
 
   for (let i = 0; i < opportunities.length; i += batchSize) {
     const batch = opportunities.slice(i, i + batchSize);
@@ -146,7 +153,7 @@ Only include opportunities with a score of 40 or higher. Respond with ONLY the J
         },
       ],
     });
-    await recordCallCost(userId, model, response);
+    costCents += await recordCallCostSync(userId, model, response);
 
     const text = response.content[0].type === "text" ? response.content[0].text : "";
     try {
@@ -160,7 +167,7 @@ Only include opportunities with a score of 40 or higher. Respond with ONLY the J
     }
   }
 
-  return allMatches.sort((a, b) => b.score - a.score);
+  return { matches: allMatches.sort((a, b) => b.score - a.score), costCents };
 }
 
 export async function matchPersonalOpportunities(
@@ -168,13 +175,14 @@ export async function matchPersonalOpportunities(
   opportunities: OppLike[],
   batchSize = 20,
   userId: string | null = null
-): Promise<MatchResult[]> {
+): Promise<MatchRun> {
   const personalSummary = buildPersonalSummary(profile);
   if (!personalSummary.includes("Skills") && !personalSummary.includes("Interests") && !personalSummary.includes("Education")) {
     throw new Error("Please fill out your skills, interests, or education to enable personal matching.");
   }
 
   const allMatches: MatchResult[] = [];
+  let costCents = 0;
 
   for (let i = 0; i < opportunities.length; i += batchSize) {
     const batch = opportunities.slice(i, i + batchSize);
@@ -214,7 +222,7 @@ Only include opportunities with a score of 40 or higher. Respond with ONLY the J
         },
       ],
     });
-    await recordCallCost(userId, model, response);
+    costCents += await recordCallCostSync(userId, model, response);
 
     const text = response.content[0].type === "text" ? response.content[0].text : "";
     try {
@@ -228,7 +236,7 @@ Only include opportunities with a score of 40 or higher. Respond with ONLY the J
     }
   }
 
-  return allMatches.sort((a, b) => b.score - a.score);
+  return { matches: allMatches.sort((a, b) => b.score - a.score), costCents };
 }
 
 export const APPLICATION_SECTIONS = [

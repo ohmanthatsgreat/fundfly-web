@@ -7,6 +7,7 @@ import {
   userProfiles,
   personalProfiles,
   dismissedOpportunities,
+  matchScanState,
 } from "@/lib/db";
 import { eq, and, notInArray, inArray, sql } from "drizzle-orm";
 import {
@@ -16,12 +17,28 @@ import {
 
 export async function POST(request: NextRequest) {
   const userId = await requireAuth();
-  const { mode = "org", offset = 0, reset = false } = await request.json();
+  // NOTE: the scan cursor is owned server-side (match_scan_state). We ignore
+  // any client-supplied offset so navigating away and back can't lose our
+  // place or replay the same first batch forever.
+  const { mode = "org", reset = false } = await request.json();
   const BATCH_LIMIT = 500;
 
-  // Check subscription
+  // Check subscription. A user can be blocked for two distinct reasons:
+  //   - no active plan/trial         → subscription_required
+  //   - plan present but AI cap hit  → ai_limit_reached (margin guard)
   const sub = await checkSubscription(userId, "matching");
   if (!sub.allowed) {
+    if (sub.usage?.atLimit) {
+      return Response.json(
+        {
+          error: "ai_limit_reached",
+          feature: "matching",
+          plan: sub.plan,
+          usage: sub.usage,
+        },
+        { status: 403 }
+      );
+    }
     return Response.json(
       { error: "subscription_required", feature: "matching" },
       { status: 403 }
@@ -65,13 +82,26 @@ export async function POST(request: NextRequest) {
     .where(eq(dismissedOpportunities.userId, userId));
   const dismissedIds = dismissed.map((d) => d.id);
 
-  // "Re-scan from Start" → actually clear this mode's existing matches so the
-  // scan begins from a clean slate (the offset also resets to 0 below).
+  // Load (or default) this mode's persisted scan cursor.
+  const [scanState] = await db
+    .select()
+    .from(matchScanState)
+    .where(
+      and(eq(matchScanState.userId, userId), eq(matchScanState.mode, mode))
+    )
+    .limit(1);
+
+  // "Re-scan from Start" → clear this mode's existing matches AND reset the
+  // persisted cursor so the scan genuinely begins from a clean slate.
   if (reset) {
     await db
       .delete(aiMatches)
       .where(and(eq(aiMatches.userId, userId), eq(aiMatches.matchMode, mode)));
   }
+
+  // Forward-only cursor: where this batch starts in the stable ID ordering.
+  const startOffset = reset ? 0 : scanState?.scanOffset ?? 0;
+  const priorScanned = reset ? 0 : scanState?.scannedCount ?? 0;
 
   // Exclude only dismissed opportunities. We deliberately do NOT exclude
   // already-matched rows here: the scan walks the eligible set with a stable
@@ -124,26 +154,44 @@ export async function POST(request: NextRequest) {
     // Stable ordering is required for OFFSET pagination to be gap-free and
     // non-overlapping across successive "Keep Searching" batches.
     .orderBy(opportunities.id)
-    .offset(reset ? 0 : offset)
+    .offset(startOffset)
     .limit(BATCH_LIMIT);
 
   const hasMore = allOpps.length === BATCH_LIMIT;
 
+  // Helper: write the persisted cursor for this (userId, mode).
+  async function persistCursor(scanOffset: number, scannedCount: number) {
+    await db
+      .insert(matchScanState)
+      .values({ userId, mode, scanOffset, scannedCount, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: [matchScanState.userId, matchScanState.mode],
+        set: { scanOffset, scannedCount, updatedAt: new Date() },
+      });
+  }
+
   if (allOpps.length === 0) {
+    // Nothing left to scan. Persist the (possibly reset) cursor so the UI
+    // reflects an accurate "X of Y scanned" on reload.
+    await persistCursor(startOffset, priorScanned);
     return Response.json({
       success: true,
       matchesProcessed: 0,
       scanned: 0,
+      totalScanned: priorScanned,
       totalAvailable,
       hasMore: false,
-      nextOffset: 0,
-      message: "No more opportunities to scan.",
+      scanCostCents: 0,
+      message:
+        reset && totalAvailable === 0
+          ? "No opportunities to scan."
+          : "No more opportunities to scan.",
     });
   }
 
   // Run AI matching using the library
   try {
-    const matches =
+    const { matches, costCents: scanCostCents } =
       mode === "personal"
         ? await matchPersonalOpportunities(profile, allOpps, 20, userId)
         : await matchOpportunities(profile, allOpps, 20, userId);
@@ -175,13 +223,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Advance and persist the cursor so the next scan (even after navigating
+    // away) resumes exactly where this one stopped.
+    const newOffset = startOffset + allOpps.length;
+    const totalScanned = priorScanned + allOpps.length;
+    await persistCursor(newOffset, totalScanned);
+
     return Response.json({
       success: true,
       matchesProcessed: totalMatches,
       scanned: allOpps.length,
+      totalScanned,
       totalAvailable,
       hasMore,
-      nextOffset: (reset ? 0 : offset) + BATCH_LIMIT,
+      scanCostCents,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "AI matching failed";

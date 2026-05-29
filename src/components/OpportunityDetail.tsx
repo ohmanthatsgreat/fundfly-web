@@ -230,8 +230,6 @@ export default function OpportunityDetail({
       ? `${formatCurrency(opp.fundingMin)} – ${formatCurrency(opp.fundingMax)}`
       : formatCurrency(opp.fundingMax) || formatCurrency(opp.fundingMin);
 
-  const isGrantsGov = opp.source === "grants.gov";
-
   // Eligibility check
   const eligibility = checkEligibility(
     {
@@ -552,26 +550,11 @@ export default function OpportunityDetail({
           {onNextStep && (
             <button
               onClick={() => onNextStep(opp)}
-              className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-all duration-150"
+              className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-all duration-150 sm:ml-auto"
             >
               Start Application
               <ArrowRight size={13} />
             </button>
-          )}
-
-          {getOpportunityUrl(opp) && (
-            <a
-              href={getOpportunityUrl(opp)!}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium text-muted hover:text-foreground bg-surface hover:bg-card border border-border rounded-lg transition-all duration-150 sm:ml-auto"
-            >
-              <span className="sm:hidden">View source</span>
-              <span className="hidden sm:inline">
-                {isGrantsGov ? "View on Grants.gov" : "Apply Now"}
-              </span>
-              <ExternalLink size={13} />
-            </a>
           )}
         </div>
       </div>

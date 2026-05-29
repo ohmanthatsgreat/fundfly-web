@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { Brain, Loader2, Sparkles, ChevronDown, ChevronUp, RotateCcw, Search } from "lucide-react";
 import OpportunityCard, { type Opportunity } from "@/components/OpportunityCard";
@@ -57,8 +58,14 @@ function ScanProgressBar({
   );
 }
 
+const ADMIN_USER_IDS = (process.env.NEXT_PUBLIC_ADMIN_USER_IDS || "")
+  .split(",")
+  .filter(Boolean);
+
 export default function MatchesPage() {
   const router = useRouter();
+  const { user } = useUser();
+  const isAdmin = user?.id ? ADMIN_USER_IDS.includes(user.id) : false;
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
@@ -66,11 +73,15 @@ export default function MatchesPage() {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [upgradeFeature, setUpgradeFeature] = useState<"matching" | "checklist">("matching");
   const [hasMore, setHasMore] = useState(false);
-  const [nextOffset, setNextOffset] = useState(0);
-  // Cumulative count of opportunities scanned across all batches in this
-  // session for the current mode. Resets on mode switch or "Re-scan from Start".
+  // Cumulative count of opportunities scanned for the current mode. This is
+  // owned by the server (match_scan_state) and hydrated on load, so navigating
+  // away and back no longer loses the place or replays the first batch.
   const [totalScanned, setTotalScanned] = useState(0);
   const [totalAvailable, setTotalAvailable] = useState(0);
+  // Cost (in cents) of the most recent scan batch, surfaced for transparency.
+  const [lastScanCostCents, setLastScanCostCents] = useState<number | null>(null);
+  // Set when the monthly AI cost cap for this tier has been reached.
+  const [limitReached, setLimitReached] = useState(false);
   // Client-side pagination for the results list — matches accumulate across
   // batches and the best are sorted first, so reveal them a page at a time.
   const RESULTS_PAGE_SIZE = 25;
@@ -80,10 +91,13 @@ export default function MatchesPage() {
   const [scanStartedAt, setScanStartedAt] = useState<number | null>(null);
   const [scanElapsedMs, setScanElapsedMs] = useState(0);
 
-  // Reset cumulative scanned + visible page when the user switches mode
+  // Reset transient display state when the user switches mode. The real scan
+  // progress (totalScanned / hasMore) is re-hydrated from the server by
+  // fetchMatches below, so we don't zero it permanently here.
   useEffect(() => {
-    setTotalScanned(0);
     setVisibleCount(RESULTS_PAGE_SIZE);
+    setLastScanCostCents(null);
+    setLimitReached(false);
   }, [mode]);
 
   // Tick elapsed time during a scan
@@ -146,6 +160,13 @@ export default function MatchesPage() {
       const res = await fetch(`/api/app/ai-matches?mode=${mode}`);
       const data = await res.json();
       setMatches(data.matches || []);
+      // Hydrate scan progress from the server so "X of Y scanned" and the
+      // Keep-Searching control survive navigation.
+      if (data.scan) {
+        setTotalScanned(data.scan.totalScanned ?? 0);
+        setTotalAvailable(data.scan.totalAvailable ?? 0);
+        setHasMore(data.scan.hasMore ?? false);
+      }
     } catch {}
     setLoading(false);
   }, [mode]);
@@ -164,20 +185,25 @@ export default function MatchesPage() {
   async function runMatch(reset = false) {
     setRunning(true);
     setScanStartedAt(Date.now());
+    setLimitReached(false);
     if (reset) setTotalScanned(0);
     try {
+      // The server owns the scan cursor (match_scan_state); we only tell it the
+      // mode and whether this is a fresh "Re-scan from Start".
       const res = await fetch("/api/app/ai-match", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode,
-          offset: reset ? 0 : nextOffset,
-          reset,
-        }),
+        body: JSON.stringify({ mode, reset }),
       });
       const data = await res.json();
       if (data.error === "subscription_required") {
         setShowUpgrade(true);
+        setRunning(false);
+        setScanStartedAt(null);
+        return;
+      }
+      if (data.error === "ai_limit_reached") {
+        setLimitReached(true);
         setRunning(false);
         setScanStartedAt(null);
         return;
@@ -188,11 +214,15 @@ export default function MatchesPage() {
         return;
       }
       setHasMore(data.hasMore ?? false);
-      setNextOffset(data.nextOffset ?? 0);
-      // Cumulative: add this batch's scanned to running total
-      setTotalScanned((prev) => (reset ? 0 : prev) + (data.scanned ?? 0));
+      // Server returns the authoritative cumulative count.
+      if (typeof data.totalScanned === "number") {
+        setTotalScanned(data.totalScanned);
+      }
       if (typeof data.totalAvailable === "number") {
         setTotalAvailable(data.totalAvailable);
+      }
+      if (typeof data.scanCostCents === "number") {
+        setLastScanCostCents(data.scanCostCents);
       }
       await fetchMatches();
     } catch {}
@@ -299,11 +329,38 @@ export default function MatchesPage() {
         </button>
       </div>
 
+      {limitReached && (
+        <div className="mb-6 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
+          <p className="text-sm font-medium text-foreground">
+            You&apos;ve reached this month&apos;s AI scanning limit on your plan.
+          </p>
+          <p className="text-xs text-muted mt-1">
+            Your already-matched opportunities are still below. Scanning resets
+            at the start of your next billing period
+            {userPlan === "matching" ? (
+              <>
+                , or{" "}
+                <button
+                  onClick={() => {
+                    setUpgradeFeature("checklist");
+                    setShowUpgrade(true);
+                  }}
+                  className="text-accent hover:underline font-medium"
+                >
+                  upgrade for more
+                </button>
+              </>
+            ) : null}
+            .
+          </p>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-6 h-6 animate-spin text-muted" />
         </div>
-      ) : matches.length === 0 ? (
+      ) : matches.length === 0 && totalScanned === 0 ? (
         <div className="max-w-xl mx-auto py-12">
           <div className="text-center mb-8">
             <Brain className="w-12 h-12 text-accent mx-auto mb-4" />
@@ -315,6 +372,13 @@ export default function MatchesPage() {
               focus on what fits.
             </p>
           </div>
+
+          {/* Live progress for the very first scan (no matches/total yet) */}
+          {running && (
+            <div className="mb-4">
+              <ScanProgressBar elapsedMs={scanElapsedMs} mode={mode} />
+            </div>
+          )}
 
           {/* How it works — set expectations up front */}
           <div className="bg-card border border-border rounded-xl p-5 space-y-4">
@@ -335,7 +399,7 @@ export default function MatchesPage() {
                   The more complete, the better the AI matches.{" "}
                   <Link
                     href={
-                      mode === "personal" ? "/app/personal-profile" : "/app/profile"
+                      mode === "personal" ? "/app/personal-profile" : "/app/organization"
                     }
                     className="text-accent hover:underline"
                   >
@@ -396,6 +460,86 @@ export default function MatchesPage() {
             </div>
           </div>
         </div>
+      ) : matches.length === 0 ? (
+        /* A scan ran (totalScanned > 0) but turned up no matches in the rows
+           covered so far. Show real progress + next actions instead of the
+           onboarding empty state. */
+        <div className="max-w-xl mx-auto py-12">
+          <div className="text-center mb-6">
+            <Search className="w-12 h-12 text-muted mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">No matches yet</h2>
+            <p className="text-sm text-muted">
+              We&apos;ve scored{" "}
+              <span className="font-semibold text-foreground">
+                {totalScanned.toLocaleString()}
+              </span>{" "}
+              {mode === "personal" ? "personal" : "business"} opportunit
+              {totalScanned === 1 ? "y" : "ies"}
+              {totalAvailable > 0 && (
+                <>
+                  {" "}
+                  of{" "}
+                  <span className="font-semibold text-foreground">
+                    {totalAvailable.toLocaleString()}
+                  </span>
+                </>
+              )}{" "}
+              so far and none cleared the relevance bar.
+              {hasMore
+                ? " Your best matches may be further in — keep searching."
+                : " Try refining your profile, then re-scan from the start."}
+            </p>
+            {isAdmin && lastScanCostCents !== null && (
+              <p className="text-xs text-muted mt-2">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-accent/70 mr-1">
+                  Admin
+                </span>
+                Last scan AI cost:{" "}
+                <span className="font-medium text-foreground tabular-nums">
+                  ${(lastScanCostCents / 100).toFixed(2)}
+                </span>
+              </p>
+            )}
+          </div>
+
+          {running && <ScanProgressBar elapsedMs={scanElapsedMs} mode={mode} />}
+
+          <div className="flex flex-col sm:flex-row gap-2 justify-center">
+            {hasMore && (
+              <button
+                onClick={() => runMatch(false)}
+                disabled={running}
+                className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-50"
+              >
+                {running ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Search className="w-4 h-4" />
+                )}
+                {running ? "Scanning..." : "Keep Searching"}
+              </button>
+            )}
+            <button
+              onClick={() => runMatch(true)}
+              disabled={running}
+              className="inline-flex items-center justify-center gap-2 px-5 py-3 border border-border rounded-lg text-sm font-medium text-muted hover:text-foreground hover:bg-surface transition-colors disabled:opacity-50"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Re-scan from Start
+            </button>
+          </div>
+
+          <p className="text-center text-xs text-muted mt-4">
+            Tip:{" "}
+            <Link
+              href={mode === "personal" ? "/app/personal-profile" : "/app/organization"}
+              className="text-accent hover:underline"
+            >
+              Complete your {mode === "personal" ? "personal" : "organization"} profile
+            </Link>{" "}
+            to improve match quality.
+          </p>
+        </div>
       ) : (
         <>
           {/* Results summary */}
@@ -434,6 +578,17 @@ export default function MatchesPage() {
                   {totalAvailable - totalScanned > 0
                     ? `${(totalAvailable - totalScanned).toLocaleString()} more to scan — click "Keep Searching" below`
                     : "More opportunities available — click “Keep Searching” below"}
+                </p>
+              )}
+              {isAdmin && lastScanCostCents !== null && !running && (
+                <p className="text-xs text-muted mt-0.5">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-accent/70 mr-1">
+                    Admin
+                  </span>
+                  Last scan AI cost:{" "}
+                  <span className="font-medium text-foreground tabular-nums">
+                    ${(lastScanCostCents / 100).toFixed(2)}
+                  </span>
                 </p>
               )}
             </div>
