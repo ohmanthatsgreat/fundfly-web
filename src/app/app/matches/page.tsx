@@ -71,14 +71,19 @@ export default function MatchesPage() {
   // session for the current mode. Resets on mode switch or "Re-scan from Start".
   const [totalScanned, setTotalScanned] = useState(0);
   const [totalAvailable, setTotalAvailable] = useState(0);
+  // Client-side pagination for the results list — matches accumulate across
+  // batches and the best are sorted first, so reveal them a page at a time.
+  const RESULTS_PAGE_SIZE = 25;
+  const [visibleCount, setVisibleCount] = useState(RESULTS_PAGE_SIZE);
   // Elapsed time for the in-flight scan, used to animate the progress bar
   // since the underlying API is one big batch with no per-opp progress event.
   const [scanStartedAt, setScanStartedAt] = useState<number | null>(null);
   const [scanElapsedMs, setScanElapsedMs] = useState(0);
 
-  // Reset cumulative scanned when the user switches mode
+  // Reset cumulative scanned + visible page when the user switches mode
   useEffect(() => {
     setTotalScanned(0);
+    setVisibleCount(RESULTS_PAGE_SIZE);
   }, [mode]);
 
   // Tick elapsed time during a scan
@@ -261,7 +266,11 @@ export default function MatchesPage() {
             ) : (
               <Sparkles className="w-4 h-4" />
             )}
-            {running ? "Matching..." : "Run AI Match"}
+            {running
+              ? "Matching..."
+              : matches.length > 0
+                ? "Keep Searching"
+                : "Run AI Match"}
           </button>
         </div>
       </div>
@@ -445,7 +454,7 @@ export default function MatchesPage() {
           )}
 
           <div className="space-y-3">
-            {matches.map((m) => (
+            {matches.slice(0, visibleCount).map((m) => (
               <div key={m.id}>
                 <OpportunityCard
                   opportunity={m.opportunity}
@@ -480,6 +489,24 @@ export default function MatchesPage() {
               </div>
             ))}
           </div>
+
+          {/* Show more (reveal additional already-scored matches) */}
+          {visibleCount < matches.length && (
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={() =>
+                  setVisibleCount((c) => c + RESULTS_PAGE_SIZE)
+                }
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-accent hover:underline"
+              >
+                <ChevronDown className="w-4 h-4" />
+                Show {Math.min(RESULTS_PAGE_SIZE, matches.length - visibleCount)} more
+                <span className="text-muted">
+                  ({matches.length - visibleCount} remaining)
+                </span>
+              </button>
+            </div>
+          )}
 
           {/* Keep Searching / pagination controls */}
           {hasMore && (

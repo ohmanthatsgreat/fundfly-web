@@ -65,22 +65,20 @@ export async function POST(request: NextRequest) {
     .where(eq(dismissedOpportunities.userId, userId));
   const dismissedIds = dismissed.map((d) => d.id);
 
-  // Also exclude already-matched IDs (unless resetting)
-  let matchedIds: string[] = [];
-  if (!reset) {
-    const existing = await db
-      .select({ id: aiMatches.opportunityId })
-      .from(aiMatches)
-      .where(
-        and(
-          eq(aiMatches.userId, userId),
-          eq(aiMatches.matchMode, mode)
-        )
-      );
-    matchedIds = existing.map((e) => e.id);
+  // "Re-scan from Start" → actually clear this mode's existing matches so the
+  // scan begins from a clean slate (the offset also resets to 0 below).
+  if (reset) {
+    await db
+      .delete(aiMatches)
+      .where(and(eq(aiMatches.userId, userId), eq(aiMatches.matchMode, mode)));
   }
 
-  const excludeIds = [...new Set([...dismissedIds, ...matchedIds])];
+  // Exclude only dismissed opportunities. We deliberately do NOT exclude
+  // already-matched rows here: the scan walks the eligible set with a stable
+  // ORDER BY + OFFSET, so excluding matched rows would shrink/shift the window
+  // and cause batches to skip or overlap. Forward-only offset never revisits a
+  // matched row, so there's no wasted re-scoring.
+  const excludeIds = dismissedIds;
 
   // Eligibility filter by mode:
   //   personal mode → audience personal + both
@@ -123,6 +121,9 @@ export async function POST(request: NextRequest) {
     })
     .from(opportunities)
     .where(whereClause)
+    // Stable ordering is required for OFFSET pagination to be gap-free and
+    // non-overlapping across successive "Keep Searching" batches.
+    .orderBy(opportunities.id)
     .offset(reset ? 0 : offset)
     .limit(BATCH_LIMIT);
 
