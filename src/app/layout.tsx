@@ -79,6 +79,35 @@ export const metadata: Metadata = {
   },
 };
 
+// Site-wide brand entity. Defines FundFly as an Organization (feeds Google's
+// Knowledge Graph and gives AI answer engines a canonical "what is FundFly")
+// and ties the domain together as a WebSite. Page-specific schema
+// (SoftwareApplication on the home page, Article on blog posts) layers on top.
+const organizationJsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://fundfly.app/#organization",
+      name: "FundFly",
+      url: "https://fundfly.app",
+      logo: "https://fundfly.app/opengraph-image",
+      description:
+        "AI-powered grant discovery and application platform. FundFly indexes over a million grants, SBIR/STTR programs, and foundation opportunities, scores each one against your profile, and helps you apply.",
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://fundfly.app/#website",
+      url: "https://fundfly.app",
+      name: "FundFly",
+      description:
+        "Find and apply to grants, SBIR funding, and foundation programs. AI-powered matching scores every opportunity against your profile.",
+      publisher: { "@id": "https://fundfly.app/#organization" },
+      inLanguage: "en-US",
+    },
+  ],
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -92,6 +121,12 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <head>
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify(organizationJsonLd),
+            }}
+          />
           <script
             dangerouslySetInnerHTML={{
               __html: `(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme:dark)").matches))document.documentElement.classList.add("dark")}catch(e){}})()`,

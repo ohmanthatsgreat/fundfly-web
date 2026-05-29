@@ -9,7 +9,7 @@ import HeroHeadline from "@/components/HeroHeadline";
 import DataSourceWatermark from "@/components/DataSourceWatermark";
 import { SmallBusinessArt, IndividualsArt } from "@/components/AudienceArt";
 import CardArt, { CardArtWatermark, TierBars } from "@/components/CardArt";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, ChevronDown } from "lucide-react";
 
 const jsonLd = {
   "@context": "https://schema.org",
@@ -28,6 +28,50 @@ const jsonLd = {
   },
 };
 
+// FAQ content. Rendered as a native <details> accordion (no client JS) and
+// emitted as FAQPage JSON-LD from the same source — the single highest-ROI
+// schema for both Google rich results and LLM answer extraction.
+const faqs: { q: string; a: string }[] = [
+  {
+    q: "What is FundFly?",
+    a: "FundFly is an AI-powered platform that helps you find and apply for funding. It indexes over a million grants, SBIR/STTR programs, and foundation opportunities, then uses AI to score each one against your profile so you can focus on the ones that actually fit.",
+  },
+  {
+    q: "Is FundFly free?",
+    a: "Yes. The free tier lets you browse over a million opportunities, search and filter them, save the promising ones, and track your applications — no credit card required. Paid tiers add AI match scoring, application checklists, and automated submission.",
+  },
+  {
+    q: "Who is FundFly for?",
+    a: "Small businesses, startups, nonprofits, researchers, and individuals. Companies use it for business grants and SBIR/STTR funding, while individuals use it for personal and foundation grants.",
+  },
+  {
+    q: "How does AI matching work?",
+    a: "You build an organization or personal profile once. FundFly's AI then scores every opportunity from 0 to 100 against that profile and explains, in plain language, why each one fits — so you spend time on the handful most likely to fund you.",
+  },
+  {
+    q: "Where does FundFly get its grant data?",
+    a: "FundFly aggregates federal, state, and foundation sources — including Grants.gov, SBIR/STTR programs, and foundation databases — and normalizes them into one consistent, searchable index.",
+  },
+  {
+    q: "How much does FundFly cost?",
+    a: "Browsing is free. Paid plans are AI Matching at $29/mo, Pre-Submission Checklist at $129/mo, and Auto-Submission at $399/mo. Every paid plan includes a 3-day free trial with no credit card and a 14-day money-back guarantee.",
+  },
+  {
+    q: "Can FundFly submit applications for me?",
+    a: "On the Auto-Submission plan, an AI agent navigates grant portals, fills out forms, and submits applications on your behalf — with human-in-the-loop review and your approval at every step.",
+  },
+];
+
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqs.map((f) => ({
+    "@type": "Question",
+    name: f.q,
+    acceptedAnswer: { "@type": "Answer", text: f.a },
+  })),
+};
+
 export default async function Home() {
   const { userId } = await auth();
   if (userId) redirect("/app");
@@ -37,6 +81,10 @@ export default async function Home() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
       <MarketingHeader />
 
@@ -365,6 +413,38 @@ export default async function Home() {
               See full plan details
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="py-24">
+        <div className="max-w-3xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Frequently asked questions
+            </h2>
+            <p className="text-muted text-lg">
+              Everything you need to know about finding and winning funding with
+              FundFly.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {faqs.map((faq) => (
+              <details
+                key={faq.q}
+                className="group bg-card border border-border rounded-xl px-5 open:border-accent/30 transition-colors"
+              >
+                <summary className="flex items-center justify-between gap-4 py-4 cursor-pointer list-none font-medium">
+                  {faq.q}
+                  <ChevronDown className="w-4 h-4 shrink-0 text-muted transition-transform group-open:rotate-180" />
+                </summary>
+                <p className="text-sm text-muted leading-relaxed pb-4">
+                  {faq.a}
+                </p>
+              </details>
+            ))}
           </div>
         </div>
       </section>
