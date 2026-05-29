@@ -1,14 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import {
-  FileText,
-  Loader2,
-  ChevronDown,
-  Trash2,
-  PenTool,
-} from "lucide-react";
+import { FileText, ChevronDown, Trash2, PenTool } from "lucide-react";
 import ApplicationWorkspace from "@/components/ApplicationWorkspace";
 import { parseDeadline } from "@/lib/dates";
 
@@ -80,6 +74,9 @@ function ApplicationsContent() {
   const [workspaceId, setWorkspaceId] = useState<number | null>(null);
   const [workspaceView, setWorkspaceView] = useState<"workspace" | "submission">("workspace");
   const [modeFilter, setModeFilter] = useState<"business" | "personal">("business");
+  // Debounce note saves: typing updates local state instantly, but the PATCH
+  // fires only once the user pauses (or blurs) instead of on every keystroke.
+  const notesTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchApps = useCallback(async () => {
     try {
@@ -120,10 +117,11 @@ function ApplicationsContent() {
     setSavingId(null);
   }
 
-  async function updateNotes(id: number, notes: string) {
-    setApps((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, notes } : a))
-    );
+  function updateNotesLocal(id: number, notes: string) {
+    setApps((prev) => prev.map((a) => (a.id === id ? { ...a, notes } : a)));
+  }
+
+  async function saveNotes(id: number, notes: string) {
     try {
       await fetch("/api/app/applications", {
         method: "PATCH",
@@ -215,8 +213,13 @@ function ApplicationsContent() {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-6 h-6 animate-spin text-muted" />
+        <div className="space-y-2">
+          {[...Array(4)].map((_, i) => (
+            <div
+              key={i}
+              className="h-16 bg-card border border-border rounded-xl animate-pulse"
+            />
+          ))}
         </div>
       ) : apps.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -338,12 +341,21 @@ function ApplicationsContent() {
                             </label>
                             <textarea
                               value={app.notes || ""}
-                              onChange={(e) =>
-                                updateNotes(app.id, e.target.value)
-                              }
-                              onBlur={(e) =>
-                                updateNotes(app.id, e.target.value)
-                              }
+                              onChange={(e) => {
+                                const notes = e.target.value;
+                                updateNotesLocal(app.id, notes);
+                                if (notesTimer.current)
+                                  clearTimeout(notesTimer.current);
+                                notesTimer.current = setTimeout(
+                                  () => saveNotes(app.id, notes),
+                                  600
+                                );
+                              }}
+                              onBlur={(e) => {
+                                if (notesTimer.current)
+                                  clearTimeout(notesTimer.current);
+                                saveNotes(app.id, e.target.value);
+                              }}
                               placeholder="Add notes about this application..."
                               rows={3}
                               className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm resize-none focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40"

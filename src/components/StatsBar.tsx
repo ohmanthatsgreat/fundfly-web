@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { TrendingUp, Clock, Bookmark, ClipboardList } from "lucide-react";
 
 type Stats = {
@@ -11,34 +12,43 @@ type Stats = {
   closingSoon: number;
 };
 
-const cards = [
+const cards: {
+  label: string;
+  key: keyof Stats;
+  icon: typeof TrendingUp;
+  color: string;
+  bg: string;
+  href?: string;
+}[] = [
   {
     label: "Total Opportunities",
-    key: "total" as keyof Stats,
+    key: "total",
     icon: TrendingUp,
     color: "text-accent",
     bg: "bg-accent/5",
   },
   {
     label: "Closing This Week",
-    key: "closingSoon" as keyof Stats,
+    key: "closingSoon",
     icon: Clock,
     color: "text-amber-500",
     bg: "bg-amber-500/5",
   },
   {
     label: "Saved",
-    key: "saved" as keyof Stats,
+    key: "saved",
     icon: Bookmark,
     color: "text-purple-500",
     bg: "bg-purple-500/5",
+    href: "/app/saved",
   },
   {
     label: "Applications",
-    key: "applications" as keyof Stats,
+    key: "applications",
     icon: ClipboardList,
     color: "text-emerald-500",
     bg: "bg-emerald-500/5",
+    href: "/app/applications",
   },
 ];
 
@@ -47,11 +57,13 @@ export default function StatsBar({ stats }: { stats: Stats }) {
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       {cards.map((card) => {
         const Icon = card.icon;
-        return (
-          <div
-            key={card.label}
-            className={`relative overflow-hidden ${card.bg} border border-border rounded-xl p-4 hover:border-accent/20 transition-all duration-200`}
-          >
+        const className = `relative overflow-hidden ${card.bg} border border-border rounded-xl p-4 transition-all duration-200 ${
+          card.href
+            ? "hover:border-accent/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+            : "hover:border-accent/20"
+        }`;
+        const inner = (
+          <>
             <div className="flex items-center justify-between mb-3">
               <span className="text-[11px] font-medium text-muted uppercase tracking-wider">
                 {card.label}
@@ -63,6 +75,16 @@ export default function StatsBar({ stats }: { stats: Stats }) {
             <p className="text-2xl font-bold tabular-nums tracking-tight">
               {stats[card.key].toLocaleString()}
             </p>
+          </>
+        );
+
+        return card.href ? (
+          <Link key={card.label} href={card.href} className={`block ${className}`}>
+            {inner}
+          </Link>
+        ) : (
+          <div key={card.label} className={className}>
+            {inner}
           </div>
         );
       })}

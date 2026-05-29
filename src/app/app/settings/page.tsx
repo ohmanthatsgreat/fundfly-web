@@ -26,6 +26,23 @@ function fmtUsd(cents: number) {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
+// Subscription status -> badge styling. "trialing" is a healthy state (the
+// 3-day no-card trial), so it must read positive rather than render red like
+// a billing failure.
+const STATUS_BADGE_CLASS: Record<string, string> = {
+  active: "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400",
+  trialing: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400",
+  past_due:
+    "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
+  unpaid: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
+  canceled: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  trialing: "Trial",
+  past_due: "Past Due",
+};
+
 export default function SettingsPage() {
   const [subscription, setSubscription] = useState<{
     plan: string;
@@ -96,12 +113,11 @@ export default function SettingsPage() {
               </span>
               <span
                 className={`text-[10px] font-medium uppercase px-2 py-0.5 rounded-md ${
-                  subscription.status === "active"
-                    ? "bg-green-100 text-green-700"
-                    : "bg-red-100 text-red-700"
+                  STATUS_BADGE_CLASS[subscription.status] ||
+                  "bg-zinc-100 text-zinc-600 dark:bg-zinc-500/15 dark:text-zinc-400"
                 }`}
               >
-                {subscription.status}
+                {STATUS_LABEL[subscription.status] || subscription.status}
               </span>
             </div>
             {(() => {
@@ -231,8 +247,8 @@ export default function SettingsPage() {
                   AI cap reached
                 </p>
                 <p className="text-red-900/80 dark:text-red-200/80 text-xs mt-0.5">
-                  Auto-submission AI features are paused for the rest of this
-                  billing period. Purchase additional credits to continue.
+                  AI features are paused for the rest of this billing period.
+                  Purchase additional credits to continue.
                 </p>
               </div>
             </div>
@@ -256,8 +272,9 @@ export default function SettingsPage() {
           )}
 
           <p className="text-xs text-muted mt-4">
-            Cap applies to auto-submission AI features. Cost is computed from
-            actual Anthropic API usage at our published model rates. Credit
+            Your cap covers all AI features — matching, application drafting,
+            and auto-submission. Cost is computed from actual Anthropic API
+            usage at our published model rates. Credit
             purchase coming soon — email{" "}
             <a
               href="mailto:support@fundfly.app"

@@ -30,19 +30,19 @@ interface Props {
 }
 
 const typeBadgeColors: Record<string, string> = {
-  grant: "bg-blue-100 text-blue-700",
-  sbir: "bg-purple-100 text-purple-700",
-  sttr: "bg-violet-100 text-violet-700",
-  foundation: "bg-amber-100 text-amber-700",
-  scholarship: "bg-teal-100 text-teal-700",
-  personal: "bg-emerald-100 text-emerald-700",
+  grant: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400",
+  sbir: "bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-400",
+  sttr: "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400",
+  foundation: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
+  scholarship: "bg-teal-100 text-teal-700 dark:bg-teal-500/15 dark:text-teal-400",
+  personal: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
 };
 
 const statusBadgeColors: Record<string, string> = {
-  open: "bg-green-100 text-green-700",
-  closed: "bg-red-100 text-red-700",
-  forecasted: "bg-yellow-100 text-yellow-700",
-  draft: "bg-gray-100 text-gray-600",
+  open: "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400",
+  closed: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400",
+  forecasted: "bg-yellow-100 text-yellow-700 dark:bg-yellow-500/15 dark:text-yellow-400",
+  draft: "bg-gray-100 text-gray-600 dark:bg-zinc-500/15 dark:text-zinc-400",
 };
 
 function formatFunding(min: number | null, max: number | null): string {
@@ -69,8 +69,20 @@ export default function OpportunityCard({
 
   return (
     <div
-      className="group bg-card border border-border rounded-xl p-5 hover:shadow-md transition-all cursor-pointer"
+      role="button"
+      tabIndex={0}
+      aria-label={`View details for ${opp.title}`}
+      className="group bg-card border border-border rounded-xl p-5 hover:shadow-md transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
       onClick={() => onSelect?.(opp)}
+      onKeyDown={(e) => {
+        if (
+          e.target === e.currentTarget &&
+          (e.key === "Enter" || e.key === " ")
+        ) {
+          e.preventDefault();
+          onSelect?.(opp);
+        }
+      }}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
@@ -78,7 +90,8 @@ export default function OpportunityCard({
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <span
               className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-md ${
-                typeBadgeColors[opp.type] || "bg-gray-100 text-gray-600"
+                typeBadgeColors[opp.type] ||
+                "bg-gray-100 text-gray-600 dark:bg-zinc-500/15 dark:text-zinc-400"
               }`}
             >
               {opp.type}
@@ -86,7 +99,8 @@ export default function OpportunityCard({
             {opp.status && (
               <span
                 className={`text-[10px] font-medium uppercase px-2 py-0.5 rounded-md ${
-                  statusBadgeColors[opp.status] || "bg-gray-100 text-gray-600"
+                  statusBadgeColors[opp.status] ||
+                  "bg-gray-100 text-gray-600 dark:bg-zinc-500/15 dark:text-zinc-400"
                 }`}
               >
                 {opp.status}
@@ -106,10 +120,10 @@ export default function OpportunityCard({
               <span
                 className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${
                   matchScore >= 80
-                    ? "bg-green-100 text-green-700"
+                    ? "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400"
                     : matchScore >= 50
-                    ? "bg-yellow-100 text-yellow-700"
-                    : "bg-gray-100 text-gray-600"
+                    ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-500/15 dark:text-yellow-400"
+                    : "bg-gray-100 text-gray-600 dark:bg-zinc-500/15 dark:text-zinc-400"
                 }`}
               >
                 {matchScore}% Match

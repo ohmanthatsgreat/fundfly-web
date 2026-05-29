@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Search, SlidersHorizontal, Loader2, X } from "lucide-react";
+import { Search, SlidersHorizontal, X } from "lucide-react";
 import OpportunityCard, { type Opportunity } from "./OpportunityCard";
 import OpportunityDetail from "./OpportunityDetail";
-import UpgradeModal from "./UpgradeModal";
 
 interface Props {
   endpoint?: string;
@@ -29,8 +28,6 @@ export default function OpportunityList({
   const [total, setTotal] = useState(0);
   const [sort, setSort] = useState("deadline_asc");
   const [selected, setSelected] = useState<Opportunity | null>(null);
-  const [showUpgrade, setShowUpgrade] = useState(false);
-  const [upgradeFeature, setUpgradeFeature] = useState<"checklist" | "matching">("checklist");
   const [userPlan, setUserPlan] = useState<string | null>(null);
 
   // Advanced filters
@@ -38,6 +35,16 @@ export default function OpportunityList({
   const [agencyFilter, setAgencyFilter] = useState("");
   const [minFunding, setMinFunding] = useState("");
   const [maxFunding, setMaxFunding] = useState("");
+
+  // Debounced mirror of the text inputs. Fetches fire once the user pauses
+  // (350ms) instead of on every keystroke; sort and pagination stay instant.
+  const [query, setQuery] = useState({
+    search: "",
+    agency: "",
+    minFunding: "",
+    maxFunding: "",
+  });
+  const isFirstQuery = useRef(true);
 
   const limit = 25;
 
@@ -54,15 +61,15 @@ export default function OpportunityList({
       limit: String(limit),
       sort,
       ...stableFilters,
-      ...(search ? { search } : {}),
-      ...(agencyFilter ? { search: agencyFilter } : {}),
-      ...(minFunding ? { fundingMin: minFunding } : {}),
-      ...(maxFunding ? { fundingMax: maxFunding } : {}),
+      ...(query.search ? { search: query.search } : {}),
+      ...(query.agency ? { search: query.agency } : {}),
+      ...(query.minFunding ? { fundingMin: query.minFunding } : {}),
+      ...(query.maxFunding ? { fundingMax: query.maxFunding } : {}),
     });
 
-    // If there's both search text and agency filter, combine them
-    if (search && agencyFilter) {
-      params.set("search", search);
+    // If there's both search text and agency filter, search text wins
+    if (query.search && query.agency) {
+      params.set("search", query.search);
     }
 
     try {
@@ -74,7 +81,7 @@ export default function OpportunityList({
       setOpportunities([]);
     }
     setLoading(false);
-  }, [endpoint, page, sort, search, stableFilters, agencyFilter, minFunding, maxFunding]);
+  }, [endpoint, page, sort, query, stableFilters]);
 
   const fetchSaved = useCallback(async () => {
     try {
@@ -97,6 +104,20 @@ export default function OpportunityList({
       setUserPlan(data.subscription?.plan || null);
     } catch {}
   }, []);
+
+  // Debounce text inputs into `query` (which drives the fetch). Skip the
+  // initial mount so we don't double-fetch before the user has typed anything.
+  useEffect(() => {
+    if (isFirstQuery.current) {
+      isFirstQuery.current = false;
+      return;
+    }
+    const t = setTimeout(() => {
+      setQuery({ search, agency: agencyFilter, minFunding, maxFunding });
+      setPage(1);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [search, agencyFilter, minFunding, maxFunding]);
 
   useEffect(() => {
     fetchOpportunities();
@@ -182,18 +203,12 @@ export default function OpportunityList({
               type="text"
               placeholder="Search opportunities..."
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-8 py-2.5 bg-surface border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
             />
             {search && (
               <button
-                onClick={() => {
-                  setSearch("");
-                  setPage(1);
-                }}
+                onClick={() => setSearch("")}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground transition-colors"
               >
                 <X size={13} />
@@ -243,10 +258,7 @@ export default function OpportunityList({
                 type="text"
                 placeholder="e.g. Department of Energy"
                 value={agencyFilter}
-                onChange={(e) => {
-                  setAgencyFilter(e.target.value);
-                  setPage(1);
-                }}
+                onChange={(e) => setAgencyFilter(e.target.value)}
                 className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 transition-all"
               />
             </div>
@@ -258,10 +270,9 @@ export default function OpportunityList({
                 type="text"
                 placeholder="$0"
                 value={minFunding}
-                onChange={(e) => {
-                  setMinFunding(e.target.value.replace(/[^0-9]/g, ""));
-                  setPage(1);
-                }}
+                onChange={(e) =>
+                  setMinFunding(e.target.value.replace(/[^0-9]/g, ""))
+                }
                 className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 transition-all"
               />
             </div>
@@ -273,10 +284,9 @@ export default function OpportunityList({
                 type="text"
                 placeholder="No max"
                 value={maxFunding}
-                onChange={(e) => {
-                  setMaxFunding(e.target.value.replace(/[^0-9]/g, ""));
-                  setPage(1);
-                }}
+                onChange={(e) =>
+                  setMaxFunding(e.target.value.replace(/[^0-9]/g, ""))
+                }
                 className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent/40 transition-all"
               />
             </div>
@@ -286,7 +296,6 @@ export default function OpportunityList({
                   setAgencyFilter("");
                   setMinFunding("");
                   setMaxFunding("");
-                  setPage(1);
                 }}
                 className="px-3 py-2 text-sm text-danger hover:bg-danger/10 rounded-lg transition-colors"
               >
@@ -299,8 +308,13 @@ export default function OpportunityList({
 
       {/* Results */}
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-6 h-6 animate-spin text-muted" />
+        <div className="space-y-3">
+          {[...Array(6)].map((_, i) => (
+            <div
+              key={i}
+              className="h-24 bg-card border border-border rounded-xl animate-pulse"
+            />
+          ))}
         </div>
       ) : opportunities.length === 0 ? (
         <div className="text-center py-20">
@@ -364,12 +378,6 @@ export default function OpportunityList({
         />
       )}
 
-      {showUpgrade && (
-        <UpgradeModal
-          feature={upgradeFeature}
-          onClose={() => setShowUpgrade(false)}
-        />
-      )}
     </div>
   );
 }
