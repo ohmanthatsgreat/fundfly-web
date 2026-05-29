@@ -29,7 +29,7 @@ function ScanProgressBar({
   mode,
 }: {
   elapsedMs: number;
-  mode: "org" | "personal";
+  mode: "org" | "personal" | "contract";
 }) {
   const estimatedTotalMs = 90_000; // ~90s baseline for a 500-opp scan
   const pct = Math.min(95, (elapsedMs / estimatedTotalMs) * 95);
@@ -38,7 +38,7 @@ function ScanProgressBar({
     <div className="bg-card border border-border rounded-xl p-4 mb-4">
       <div className="flex items-center justify-between mb-2 text-xs">
         <span className="text-foreground/80 font-medium">
-          Scoring opportunities against your {mode === "personal" ? "personal" : "organization"} profile…
+          Scoring {mode === "contract" ? "federal contracts" : "opportunities"} against your {mode === "personal" ? "personal" : "organization"} profile…
         </span>
         <span className="text-muted tabular-nums">
           {elapsedSec}s elapsed
@@ -62,7 +62,7 @@ export default function MatchesPage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
-  const [mode, setMode] = useState<"org" | "personal">("org");
+  const [mode, setMode] = useState<"org" | "personal" | "contract">("org");
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [upgradeFeature, setUpgradeFeature] = useState<"matching" | "checklist">("matching");
   const [hasMore, setHasMore] = useState(false);
@@ -288,6 +288,16 @@ export default function MatchesPage() {
         >
           Personal Matches
         </button>
+        <button
+          onClick={() => setMode("contract")}
+          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+            mode === "contract"
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted hover:text-foreground"
+          }`}
+        >
+          Federal Contracts
+        </button>
       </div>
 
       {loading ? (
@@ -320,13 +330,13 @@ export default function MatchesPage() {
               <div>
                 <p className="text-sm font-medium">
                   Fill out your{" "}
-                  {mode === "org" ? "organization" : "personal"} profile
+                  {mode === "personal" ? "personal" : "organization"} profile
                 </p>
                 <p className="text-xs text-muted mt-0.5">
                   The more complete, the better the AI matches.{" "}
                   <Link
                     href={
-                      mode === "org" ? "/app/profile" : "/app/personal-profile"
+                      mode === "personal" ? "/app/personal-profile" : "/app/profile"
                     }
                     className="text-accent hover:underline"
                   >

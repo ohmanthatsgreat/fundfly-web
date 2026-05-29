@@ -163,6 +163,70 @@ Only include opportunities with a score of 40 or higher. Respond with ONLY the J
   return allMatches.sort((a, b) => b.score - a.score);
 }
 
+export async function matchContractOpportunities(
+  profile: ProfileLike,
+  opportunities: OppLike[],
+  batchSize = 20,
+  userId: string | null = null
+): Promise<MatchResult[]> {
+  const orgSummary = buildOrgSummary(profile);
+  if (!orgSummary.includes("Products") && !orgSummary.includes("Expertise") && !orgSummary.includes("NAICS")) {
+    throw new Error("Please fill out your products/services, areas of expertise, or NAICS codes to enable contract matching.");
+  }
+
+  const allMatches: MatchResult[] = [];
+
+  for (let i = 0; i < opportunities.length; i += batchSize) {
+    const batch = opportunities.slice(i, i + batchSize);
+    const oppList = batch.map((o, idx) => `--- Opportunity ${idx + 1} ---\n${buildOpportunitySummary(o)}`).join("\n\n");
+
+    const model = "claude-sonnet-4-6";
+    const response = await getClient().messages.create({
+      model,
+      max_tokens: 4096,
+      messages: [
+        {
+          role: "user",
+          content: `You are an expert federal procurement analyst. Analyze each federal CONTRACT opportunity (solicitation) below against this business profile and determine how well the business could compete for and perform the work.
+
+BUSINESS PROFILE:
+${orgSummary}
+
+CONTRACT OPPORTUNITIES TO EVALUATE:
+${oppList}
+
+CRITICAL: These are federal procurement contracts, NOT grants. Score based on whether this business can actually deliver the goods/services being solicited:
+- Strong matches: the solicited work aligns with the business's products/services, areas of expertise, NAICS codes, certifications, or past performance.
+- Weak matches (score 0-20): work entirely outside the business's capabilities, or requiring set-aside certifications (e.g. 8(a), SDVOSB, WOSB, HUBZone) the business does not hold.
+- Factor in NAICS code alignment and any small-business set-aside requirements when present.
+
+For each opportunity, respond with a JSON array. Each element must have:
+- "opportunity_id": the ID from the opportunity
+- "score": relevance score from 0-100 (0 = cannot compete, 100 = ideal fit)
+- "summary": 1-2 sentence summary of what this contract procures
+- "match_reasoning": 2-3 sentences explaining why this business could or could not win and perform this contract
+
+Only include opportunities with a score of 40 or higher. Respond with ONLY the JSON array, no other text.`,
+        },
+      ],
+    });
+    await recordCallCost(userId, model, response);
+
+    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    try {
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const parsed: MatchResult[] = JSON.parse(jsonMatch[0]);
+        allMatches.push(...parsed);
+      }
+    } catch {
+      // skip unparseable batch
+    }
+  }
+
+  return allMatches.sort((a, b) => b.score - a.score);
+}
+
 export async function matchPersonalOpportunities(
   profile: ProfileLike,
   opportunities: OppLike[],

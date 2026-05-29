@@ -163,7 +163,11 @@ export async function syncSbirGov(): Promise<number> {
   return total;
 }
 
-// ─── SAM.gov sync (federal assistance listings) ─────────────────────
+// ─── SAM.gov sync (federal contract opportunities) ──────────────────
+// This is SAM.gov's Contract Opportunities API — procurement notices
+// (solicitations), NOT grants/financial assistance. Rows are tagged
+// type "contract" so they only surface in the Federal Contracts matcher,
+// never in the grant-focused browse/match flows.
 
 function getDateMonthsAgo(months: number): string {
   const d = new Date();
@@ -190,7 +194,7 @@ export async function syncSamGov(): Promise<number> {
     url.searchParams.set("postedTo", getTodayDate());
     url.searchParams.set("limit", "1000");
     url.searchParams.set("offset", String(page * 1000));
-    url.searchParams.set("ptype", "o,k"); // grants + other
+    url.searchParams.set("ptype", "o,k"); // Solicitation + Combined Synopsis/Solicitation
 
     try {
       const res = await fetch(url.toString());
@@ -210,7 +214,7 @@ export async function syncSamGov(): Promise<number> {
             (item.department as Record<string, unknown>)?.name ||
             item.organizationType || ""
           ),
-          type: "grant",
+          type: "contract",
           fundingMin: (item.award as Record<string, unknown> | undefined)?.floor
             ? Number((item.award as Record<string, unknown>).floor)
             : null,

@@ -8,8 +8,12 @@ import {
   personalProfiles,
   dismissedOpportunities,
 } from "@/lib/db";
-import { eq, and, notInArray, inArray, sql } from "drizzle-orm";
-import { matchOpportunities, matchPersonalOpportunities } from "@/lib/ai";
+import { eq, ne, and, notInArray, inArray, sql } from "drizzle-orm";
+import {
+  matchOpportunities,
+  matchPersonalOpportunities,
+  matchContractOpportunities,
+} from "@/lib/ai";
 
 export async function POST(request: NextRequest) {
   const userId = await requireAuth();
@@ -25,9 +29,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Load profile
+  // Load profile. Federal contracts are scored against the org profile, since
+  // contracts are awarded to businesses.
   let profile: Record<string, unknown> | null = null;
-  if (mode === "org") {
+  if (mode === "org" || mode === "contract") {
     const [row] = await db
       .select()
       .from(userProfiles)
@@ -79,17 +84,28 @@ export async function POST(request: NextRequest) {
 
   const excludeIds = [...new Set([...dismissedIds, ...matchedIds])];
 
-  // Audience filter:
-  //   personal mode → personal + both (skip business-only grants)
-  //   org mode      → business + both (skip personal-only grants)
-  // "both" is included in both to handle Zeffy grants that genuinely fit either.
-  const audienceValues =
-    mode === "personal" ? ["personal", "both"] : ["business", "both"];
+  // Eligibility filter by mode:
+  //   contract mode → type = "contract" (federal procurement, ignores audience)
+  //   personal mode → audience personal + both, never contracts
+  //   org mode      → audience business + both, never contracts
+  // "both" is included in personal/org to handle Zeffy grants that fit either.
+  // Contracts are excluded from the grant modes so they only surface in their
+  // own tab.
+  const eligibilityClause =
+    mode === "contract"
+      ? eq(opportunities.type, "contract")
+      : and(
+          inArray(
+            opportunities.audience,
+            mode === "personal" ? ["personal", "both"] : ["business", "both"]
+          ),
+          ne(opportunities.type, "contract")
+        );
 
-  // Compose WHERE: status open + audience + not-excluded
+  // Compose WHERE: status open + eligibility + not-excluded
   const whereClause = and(
     eq(opportunities.status, "open"),
-    inArray(opportunities.audience, audienceValues),
+    eligibilityClause,
     excludeIds.length > 0
       ? notInArray(opportunities.id, excludeIds)
       : undefined
@@ -140,6 +156,8 @@ export async function POST(request: NextRequest) {
     const matches =
       mode === "personal"
         ? await matchPersonalOpportunities(profile, allOpps, 20, userId)
+        : mode === "contract"
+        ? await matchContractOpportunities(profile, allOpps, 20, userId)
         : await matchOpportunities(profile, allOpps, 20, userId);
 
     // Save results to DB
