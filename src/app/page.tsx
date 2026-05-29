@@ -48,12 +48,7 @@ export default async function Home() {
       <main>
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="max-w-5xl mx-auto px-6 pt-24 pb-20 text-center">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent-light text-accent text-sm font-medium mb-8">
-            <Zap className="w-3.5 h-3.5" />
-            AI-powered grant discovery
-          </div>
-
+        <div className="max-w-5xl mx-auto px-6 pt-16 pb-20 text-center">
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.08] mb-6">
             There are billions in
             <br />
@@ -120,34 +115,42 @@ export default async function Home() {
             {[
               {
                 step: "01",
+                slug: "browse-search",
                 icon: Search,
                 title: "Browse & Search",
                 desc: "Grants from Grants.gov, SBIR.gov, state portals, and foundation databases — all in one place. Filter by type, agency, funding amount, deadline, and eligibility.",
               },
               {
                 step: "02",
+                slug: "ai-matching",
                 icon: Brain,
                 title: "AI Matching",
                 desc: "Tell us about your organization or yourself. Our AI scores every opportunity against your profile and explains why each is a fit.",
               },
               {
                 step: "03",
+                slug: "apply-with-ai",
                 icon: FileText,
                 title: "Apply with AI",
                 desc: "AI drafts your application narrative, generates required documents, and can even fill out submission forms for you.",
               },
             ].map((item) => (
-              <div
+              <Link
                 key={item.step}
-                className="relative bg-card border border-border rounded-2xl p-8 hover:shadow-lg transition-shadow"
+                href={`/features/${item.slug}`}
+                className="group relative bg-card border border-border rounded-2xl p-8 hover:shadow-lg hover:border-accent/30 transition-all"
               >
                 <div className="text-accent/20 text-6xl font-bold absolute top-4 right-6">
                   {item.step}
                 </div>
                 <item.icon className="w-10 h-10 text-accent mb-5" />
                 <h3 className="text-xl font-semibold mb-3">{item.title}</h3>
-                <p className="text-muted text-sm leading-relaxed">{item.desc}</p>
-              </div>
+                <p className="text-muted text-sm leading-relaxed mb-4">{item.desc}</p>
+                <span className="inline-flex items-center gap-1 text-sm font-medium text-accent">
+                  Learn more
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                </span>
+              </Link>
             ))}
           </div>
         </div>
@@ -167,49 +170,79 @@ export default async function Home() {
           </div>
 
           <div className="grid md:grid-cols-2 gap-8">
-            <div className="bg-card border border-border rounded-2xl p-8">
-              <Monitor className="w-10 h-10 text-accent mb-5" />
-              <h3 className="text-xl font-semibold mb-3">Small Business</h3>
-              <p className="text-muted text-sm leading-relaxed mb-6">
-                Discover small business grants, startup funding, and corporate
-                programs designed to help founders scale without giving up
-                equity.
-              </p>
-              <ul className="space-y-3">
-                {[
-                  "Federal SBIR/STTR Funding",
-                  "State & Local Economic Relief",
-                  "Foundation Mission Grants",
-                ].map((item) => (
-                  <li key={item} className="flex items-center gap-2.5 text-sm">
-                    <CheckCircle2 className="w-4.5 h-4.5 text-accent shrink-0" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <Link
+              href="/sign-up"
+              className="group bg-card border border-border rounded-2xl overflow-hidden hover:shadow-lg hover:border-accent/30 transition-all"
+            >
+              {/* Image header — swap the gradient div for <Image src="/images/small-business.jpg" /> once a photo is added to /public/images */}
+              <div className="relative h-44 bg-gradient-to-br from-accent/80 to-blue-700 flex items-center justify-center">
+                <Monitor className="w-14 h-14 text-white/90" />
+                <span className="absolute bottom-4 left-6 text-white text-sm font-medium tracking-wide">
+                  For founders & teams
+                </span>
+              </div>
+              <div className="p-8">
+                <h3 className="text-xl font-semibold mb-3">Small Business</h3>
+                <p className="text-muted text-sm leading-relaxed mb-6">
+                  Discover small business grants, startup funding, and corporate
+                  programs designed to help founders scale without giving up
+                  equity.
+                </p>
+                <ul className="space-y-3">
+                  {[
+                    "Federal SBIR/STTR Funding",
+                    "State & Local Economic Relief",
+                    "Foundation Mission Grants",
+                  ].map((item) => (
+                    <li key={item} className="flex items-center gap-2.5 text-sm">
+                      <CheckCircle2 className="w-4.5 h-4.5 text-accent shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <span className="inline-flex items-center gap-1 text-sm font-medium text-accent mt-6">
+                  Find business funding
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                </span>
+              </div>
+            </Link>
 
-            <div className="bg-card border border-border rounded-2xl p-8">
-              <Globe className="w-10 h-10 text-accent mb-5" />
-              <h3 className="text-xl font-semibold mb-3">Individuals</h3>
-              <p className="text-muted text-sm leading-relaxed mb-6">
-                Find personal grants for research, arts, education, housing
-                assistance, and emergency relief. We bring the applications to
-                you.
-              </p>
-              <ul className="space-y-3">
-                {[
-                  "Academic Fellowships",
-                  "Artist & Creator Endowments",
-                  "Targeted Demographic Funds",
-                ].map((item) => (
-                  <li key={item} className="flex items-center gap-2.5 text-sm">
-                    <CheckCircle2 className="w-4.5 h-4.5 text-accent shrink-0" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <Link
+              href="/sign-up"
+              className="group bg-card border border-border rounded-2xl overflow-hidden hover:shadow-lg hover:border-accent/30 transition-all"
+            >
+              {/* Image header — swap the gradient div for <Image src="/images/individuals.jpg" /> once a photo is added to /public/images */}
+              <div className="relative h-44 bg-gradient-to-br from-purple-600 to-accent flex items-center justify-center">
+                <Globe className="w-14 h-14 text-white/90" />
+                <span className="absolute bottom-4 left-6 text-white text-sm font-medium tracking-wide">
+                  For people & researchers
+                </span>
+              </div>
+              <div className="p-8">
+                <h3 className="text-xl font-semibold mb-3">Individuals</h3>
+                <p className="text-muted text-sm leading-relaxed mb-6">
+                  Find personal grants for research, arts, education, housing
+                  assistance, and emergency relief. We bring the applications to
+                  you.
+                </p>
+                <ul className="space-y-3">
+                  {[
+                    "Academic Fellowships",
+                    "Artist & Creator Endowments",
+                    "Targeted Demographic Funds",
+                  ].map((item) => (
+                    <li key={item} className="flex items-center gap-2.5 text-sm">
+                      <CheckCircle2 className="w-4.5 h-4.5 text-accent shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <span className="inline-flex items-center gap-1 text-sm font-medium text-accent mt-6">
+                  Find personal funding
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                </span>
+              </div>
+            </Link>
           </div>
         </div>
       </section>
@@ -226,44 +259,53 @@ export default async function Home() {
           <div className="grid md:grid-cols-3 gap-6">
             {[
               {
+                slug: "browse-search",
                 icon: Search,
                 title: "Smart Search",
                 desc: "Full-text search across every indexed opportunity with filters for type, agency, amount, and deadline.",
               },
               {
+                slug: "ai-matching",
                 icon: Brain,
                 title: "AI Match Scoring",
                 desc: "Every opportunity scored 0-100 against your profile with detailed reasoning.",
               },
               {
+                slug: "apply-with-ai",
                 icon: FileText,
                 title: "Application Drafting",
                 desc: "AI generates project narratives, budgets, and capability statements.",
               },
               {
+                slug: "application-tracker",
                 icon: BarChart3,
                 title: "Application Tracker",
                 desc: "Track every application from draft to submission to award.",
               },
               {
+                slug: "security",
                 icon: Shield,
                 title: "Secure & Private",
                 desc: "Your data stays yours. Encrypted in transit and at rest, never sold to third parties.",
               },
               {
+                slug: "instant-access",
                 icon: Zap,
                 title: "Instant Access",
                 desc: "No downloads or installs. Sign up and start finding grants in your browser in under 60 seconds.",
               },
             ].map((item) => (
-              <div
+              <Link
                 key={item.title}
-                className="bg-card border border-border rounded-xl p-6 hover:shadow-md transition-shadow"
+                href={`/features/${item.slug}`}
+                className="group bg-card border border-border rounded-xl p-6 hover:shadow-md hover:border-accent/30 transition-all"
               >
                 <item.icon className="w-8 h-8 text-accent mb-4" />
-                <h3 className="font-semibold mb-2">{item.title}</h3>
+                <h3 className="font-semibold mb-2 group-hover:text-accent transition-colors">
+                  {item.title}
+                </h3>
                 <p className="text-sm text-muted leading-relaxed">{item.desc}</p>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
@@ -282,26 +324,30 @@ export default async function Home() {
           </div>
 
           <div className="grid md:grid-cols-4 gap-4 text-center">
-            <div className="bg-card border border-border rounded-xl p-6">
-              <div className="text-2xl font-bold mb-1">Free</div>
-              <div className="text-sm text-muted mb-3">$0 forever</div>
-              <p className="text-xs text-muted">Browse, search & save grants</p>
-            </div>
-            <div className="bg-card border border-border rounded-xl p-6">
-              <div className="text-2xl font-bold mb-1">Matching</div>
-              <div className="text-sm text-muted mb-3">$29/mo</div>
-              <p className="text-xs text-muted">AI scores every grant against your profile</p>
-            </div>
-            <div className="bg-card border-2 border-accent rounded-xl p-6 shadow-md shadow-accent/10">
-              <div className="text-2xl font-bold mb-1">Checklist</div>
-              <div className="text-sm text-muted mb-3">$129/mo</div>
-              <p className="text-xs text-muted">Step-by-step plans & AI drafting</p>
-            </div>
-            <div className="bg-card border border-border rounded-xl p-6">
-              <div className="text-2xl font-bold mb-1">Auto-Submit</div>
-              <div className="text-sm text-muted mb-3">$399/mo</div>
-              <p className="text-xs text-muted">AI agent fills & submits for you</p>
-            </div>
+            {[
+              { name: "Free", price: "$0 forever", desc: "Browse, search & save grants", popular: false },
+              { name: "Matching", price: "$29/mo", desc: "AI scores every grant against your profile", popular: false },
+              { name: "Checklist", price: "$129/mo", desc: "Step-by-step plans & AI drafting", popular: true },
+              { name: "Auto-Submit", price: "$399/mo", desc: "AI agent fills & submits for you", popular: false },
+            ].map((tier) => (
+              <Link
+                key={tier.name}
+                href="/pricing"
+                className={`group bg-card rounded-xl p-6 transition-all hover:shadow-md ${
+                  tier.popular
+                    ? "border-2 border-accent shadow-md shadow-accent/10"
+                    : "border border-border hover:border-accent/30"
+                }`}
+              >
+                <div className="text-2xl font-bold mb-1">{tier.name}</div>
+                <div className="text-sm text-muted mb-3">{tier.price}</div>
+                <p className="text-xs text-muted mb-4">{tier.desc}</p>
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-accent">
+                  View plan
+                  <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+                </span>
+              </Link>
+            ))}
           </div>
 
           <div className="text-center mt-8">
