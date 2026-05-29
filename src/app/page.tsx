@@ -3,18 +3,13 @@ import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import MarketingHeader from "@/components/MarketingHeader";
 import Footer from "@/components/Footer";
-import {
-  Search,
-  Brain,
-  FileText,
-  Shield,
-  Zap,
-  BarChart3,
-  ArrowRight,
-  CheckCircle2,
-  Monitor,
-  Globe,
-} from "lucide-react";
+import FeatureMarquee from "@/components/FeatureMarquee";
+import ClothBackground from "@/components/ClothBackground";
+import HeroHeadline from "@/components/HeroHeadline";
+import DataSourceWatermark from "@/components/DataSourceWatermark";
+import { SmallBusinessArt, IndividualsArt } from "@/components/AudienceArt";
+import CardArt, { CardArtWatermark, TierBars } from "@/components/CardArt";
+import { ArrowRight, CheckCircle2 } from "lucide-react";
 
 const jsonLd = {
   "@context": "https://schema.org",
@@ -48,14 +43,8 @@ export default async function Home() {
       <main>
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="max-w-5xl mx-auto px-6 pt-16 pb-20 text-center">
-          <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.08] mb-6">
-            There are billions in
-            <br />
-            grants waiting.
-            <br />
-            <span className="text-accent">We find yours.</span>
-          </h1>
+        <div className="max-w-5xl mx-auto px-6 pt-16 pb-12 text-center">
+          <HeroHeadline />
 
           <p className="text-lg md:text-xl text-muted max-w-2xl mx-auto mb-10 leading-relaxed">
             Governments and foundations want to give their money away. But
@@ -78,11 +67,27 @@ export default async function Home() {
             </Link>
           </div>
         </div>
+
+        {/* Scrolling feature pills */}
+        <div className="pb-16">
+          <FeatureMarquee />
+        </div>
       </section>
 
       {/* Stats bar */}
-      <section className="bg-foreground text-background py-16">
-        <div className="max-w-5xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+      <section className="relative overflow-hidden bg-foreground text-background py-16">
+        <ClothBackground />
+        <DataSourceWatermark />
+        {/* Center fade so the watermark recedes behind the stat numbers */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse 58% 48% at 50% 50%, var(--color-foreground) 0%, transparent 70%)",
+          }}
+        />
+        <div className="relative z-10 max-w-5xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
           <div>
             <div className="text-4xl font-bold">$500B+</div>
             <div className="text-sm opacity-60 mt-1">In federal grants awarded annually</div>
@@ -116,21 +121,21 @@ export default async function Home() {
               {
                 step: "01",
                 slug: "browse-search",
-                icon: Search,
+                art: "search" as const,
                 title: "Browse & Search",
                 desc: "Grants from Grants.gov, SBIR.gov, state portals, and foundation databases — all in one place. Filter by type, agency, funding amount, deadline, and eligibility.",
               },
               {
                 step: "02",
                 slug: "ai-matching",
-                icon: Brain,
+                art: "match" as const,
                 title: "AI Matching",
                 desc: "Tell us about your organization or yourself. Our AI scores every opportunity against your profile and explains why each is a fit.",
               },
               {
                 step: "03",
                 slug: "apply-with-ai",
-                icon: FileText,
+                art: "draft" as const,
                 title: "Apply with AI",
                 desc: "AI drafts your application narrative, generates required documents, and can even fill out submission forms for you.",
               },
@@ -143,7 +148,7 @@ export default async function Home() {
                 <div className="text-accent/20 text-6xl font-bold absolute top-4 right-6">
                   {item.step}
                 </div>
-                <item.icon className="w-10 h-10 text-accent mb-5" />
+                <CardArt variant={item.art} className="mb-5" />
                 <h3 className="text-xl font-semibold mb-3">{item.title}</h3>
                 <p className="text-muted text-sm leading-relaxed mb-4">{item.desc}</p>
                 <span className="inline-flex items-center gap-1 text-sm font-medium text-accent">
@@ -174,9 +179,8 @@ export default async function Home() {
               href="/sign-up"
               className="group bg-card border border-border rounded-2xl overflow-hidden hover:shadow-lg hover:border-accent/30 transition-all"
             >
-              {/* Image header — swap the gradient div for <Image src="/images/small-business.jpg" /> once a photo is added to /public/images */}
-              <div className="relative h-44 bg-gradient-to-br from-accent/80 to-blue-700 flex items-center justify-center">
-                <Monitor className="w-14 h-14 text-white/90" />
+              <div className="relative h-44 bg-gradient-to-br from-blue-800 to-slate-900 overflow-hidden">
+                <SmallBusinessArt />
                 <span className="absolute bottom-4 left-6 text-white text-sm font-medium tracking-wide">
                   For founders & teams
                 </span>
@@ -211,9 +215,8 @@ export default async function Home() {
               href="/sign-up"
               className="group bg-card border border-border rounded-2xl overflow-hidden hover:shadow-lg hover:border-accent/30 transition-all"
             >
-              {/* Image header — swap the gradient div for <Image src="/images/individuals.jpg" /> once a photo is added to /public/images */}
-              <div className="relative h-44 bg-gradient-to-br from-purple-600 to-accent flex items-center justify-center">
-                <Globe className="w-14 h-14 text-white/90" />
+              <div className="relative h-44 bg-gradient-to-br from-slate-800 to-blue-900 overflow-hidden">
+                <IndividualsArt />
                 <span className="absolute bottom-4 left-6 text-white text-sm font-medium tracking-wide">
                   For people & researchers
                 </span>
@@ -260,37 +263,37 @@ export default async function Home() {
             {[
               {
                 slug: "browse-search",
-                icon: Search,
+                art: "search" as const,
                 title: "Smart Search",
                 desc: "Full-text search across every indexed opportunity with filters for type, agency, amount, and deadline.",
               },
               {
                 slug: "ai-matching",
-                icon: Brain,
+                art: "match" as const,
                 title: "AI Match Scoring",
                 desc: "Every opportunity scored 0-100 against your profile with detailed reasoning.",
               },
               {
                 slug: "apply-with-ai",
-                icon: FileText,
+                art: "draft" as const,
                 title: "Application Drafting",
                 desc: "AI generates project narratives, budgets, and capability statements.",
               },
               {
                 slug: "application-tracker",
-                icon: BarChart3,
+                art: "tracker" as const,
                 title: "Application Tracker",
                 desc: "Track every application from draft to submission to award.",
               },
               {
                 slug: "security",
-                icon: Shield,
+                art: "secure" as const,
                 title: "Secure & Private",
                 desc: "Your data stays yours. Encrypted in transit and at rest, never sold to third parties.",
               },
               {
                 slug: "instant-access",
-                icon: Zap,
+                art: "instant" as const,
                 title: "Instant Access",
                 desc: "No downloads or installs. Sign up and start finding grants in your browser in under 60 seconds.",
               },
@@ -298,13 +301,16 @@ export default async function Home() {
               <Link
                 key={item.title}
                 href={`/features/${item.slug}`}
-                className="group bg-card border border-border rounded-xl p-6 hover:shadow-md hover:border-accent/30 transition-all"
+                className="group relative overflow-hidden bg-card border border-border rounded-xl p-6 hover:shadow-md hover:border-accent/30 transition-all"
               >
-                <item.icon className="w-8 h-8 text-accent mb-4" />
-                <h3 className="font-semibold mb-2 group-hover:text-accent transition-colors">
-                  {item.title}
-                </h3>
-                <p className="text-sm text-muted leading-relaxed">{item.desc}</p>
+                <CardArtWatermark variant={item.art} />
+                <div className="relative">
+                  <CardArt variant={item.art} className="mb-4" />
+                  <h3 className="font-semibold mb-2 group-hover:text-accent transition-colors">
+                    {item.title}
+                  </h3>
+                  <p className="text-sm text-muted leading-relaxed">{item.desc}</p>
+                </div>
               </Link>
             ))}
           </div>
@@ -325,10 +331,10 @@ export default async function Home() {
 
           <div className="grid md:grid-cols-4 gap-4 text-center">
             {[
-              { name: "Free", price: "$0 forever", desc: "Browse, search & save grants", popular: false },
-              { name: "Matching", price: "$29/mo", desc: "AI scores every grant against your profile", popular: false },
-              { name: "Checklist", price: "$129/mo", desc: "Step-by-step plans & AI drafting", popular: true },
-              { name: "Auto-Submit", price: "$399/mo", desc: "AI agent fills & submits for you", popular: false },
+              { name: "Free", price: "$0 forever", desc: "Browse, search & save grants", popular: false, level: 1 },
+              { name: "Matching", price: "$29/mo", desc: "AI scores every grant against your profile", popular: false, level: 2 },
+              { name: "Checklist", price: "$129/mo", desc: "Step-by-step plans & AI drafting", popular: true, level: 3 },
+              { name: "Auto-Submit", price: "$399/mo", desc: "AI agent fills & submits for you", popular: false, level: 4 },
             ].map((tier) => (
               <Link
                 key={tier.name}
@@ -339,6 +345,7 @@ export default async function Home() {
                     : "border border-border hover:border-accent/30"
                 }`}
               >
+                <TierBars level={tier.level} className="mb-4" />
                 <div className="text-2xl font-bold mb-1">{tier.name}</div>
                 <div className="text-sm text-muted mb-3">{tier.price}</div>
                 <p className="text-xs text-muted mb-4">{tier.desc}</p>
