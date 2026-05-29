@@ -20,6 +20,8 @@ import {
   ChevronRight,
   Sun,
   Moon,
+  Clock,
+  Sparkles,
 } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
@@ -55,6 +57,108 @@ function formatCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
   return String(n);
+}
+
+const PLAN_LABELS: Record<string, string> = {
+  matching: "AI Matching",
+  checklist: "Pre-Submission Checklist",
+  auto_submission: "Auto-Submission",
+  bundle: "Bundle",
+};
+
+/**
+ * Shows trial state in the sidebar footer:
+ *   - active trial → days remaining + Upgrade link (drives conversion, avoids
+ *     a surprise cutoff)
+ *   - trial used but lapsed with no paid sub → "Trial ended" + Upgrade
+ *   - otherwise renders nothing
+ */
+function TrialStatus({ collapsed }: { collapsed: boolean }) {
+  const [state, setState] = useState<{
+    daysLeft: number;
+    plan: string;
+    active: boolean;
+    ended: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/app/subscription")
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return;
+        const trial = d.trial;
+        if (!trial) return;
+        const msLeft = new Date(trial.endsAt).getTime() - Date.now();
+        const daysLeft = Math.max(0, Math.ceil(msLeft / 86_400_000));
+        // Lapsed trial with no active paid subscription.
+        const ended = !trial.active && !d.subscription;
+        if (trial.active || ended) {
+          setState({ daysLeft, plan: trial.plan, active: !!trial.active, ended });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!state) return null;
+
+  const planLabel = PLAN_LABELS[state.plan] || "your plan";
+
+  if (collapsed) {
+    return (
+      <Link
+        href="/pricing"
+        title={
+          state.active
+            ? `${state.daysLeft} day${state.daysLeft === 1 ? "" : "s"} left in trial — Upgrade`
+            : "Trial ended — Upgrade"
+        }
+        className={`flex items-center justify-center py-2 mt-2 rounded-lg transition-colors ${
+          state.active
+            ? "text-accent hover:bg-accent/10"
+            : "text-amber-600 hover:bg-amber-500/10"
+        }`}
+      >
+        {state.active ? (
+          <Clock className="w-4.5 h-4.5" />
+        ) : (
+          <Sparkles className="w-4.5 h-4.5" />
+        )}
+      </Link>
+    );
+  }
+
+  return (
+    <Link
+      href="/pricing"
+      className={`block rounded-lg border p-3 mt-2 transition-colors ${
+        state.active
+          ? "border-accent/30 bg-accent/5 hover:bg-accent/10"
+          : "border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10"
+      }`}
+    >
+      <div className="flex items-center gap-2 mb-0.5">
+        {state.active ? (
+          <Clock className="w-3.5 h-3.5 text-accent shrink-0" />
+        ) : (
+          <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+        )}
+        <span className="text-xs font-semibold">
+          {state.active
+            ? `${state.daysLeft} day${state.daysLeft === 1 ? "" : "s"} left in trial`
+            : "Your trial has ended"}
+        </span>
+      </div>
+      <p className="text-[11px] text-muted">
+        {state.active
+          ? `Trialing ${planLabel}. Upgrade to keep access →`
+          : `Upgrade to restore ${planLabel} →`}
+      </p>
+    </Link>
+  );
 }
 
 const baseNavItems = [
@@ -140,9 +244,14 @@ export default function AppSidebar({ onNavigate }: { onNavigate?: () => void }) 
             icon: React.ComponentType<{ className?: string }>;
             tour?: string;
           };
+          // Active when the path matches exactly, or is a nested route under
+          // this item. The trailing-slash check prevents sibling-prefix
+          // collisions (e.g. /app/personal-profile must NOT light up
+          // /app/personal "Personal Grants").
           const isActive =
             pathname === navItem.href ||
-            (navItem.href !== "/app" && pathname.startsWith(navItem.href));
+            (navItem.href !== "/app" &&
+              pathname.startsWith(navItem.href + "/"));
           const Icon = navItem.icon;
 
           const statKey = STAT_KEYS[navItem.href];
@@ -180,6 +289,11 @@ export default function AppSidebar({ onNavigate }: { onNavigate?: () => void }) 
           );
         })}
       </nav>
+
+      {/* Trial status (renders nothing when there's no trial) */}
+      <div className="px-2">
+        <TrialStatus collapsed={collapsed} />
+      </div>
 
       {/* User + Theme */}
       <div className="border-t border-border p-3 space-y-2">

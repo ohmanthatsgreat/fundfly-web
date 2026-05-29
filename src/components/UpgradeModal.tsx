@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Sparkles, X, Loader2, Brain, ClipboardCheck, Bot, Check } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Sparkles, X, Loader2, Brain, ClipboardCheck, Bot, Check, Gift } from "lucide-react";
 
 type Feature = "matching" | "checklist" | "auto_submission";
 
@@ -67,9 +67,41 @@ export default function UpgradeModal({
 }) {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Trial eligibility — one no-card trial per user, ever.
+  const [trialUsed, setTrialUsed] = useState<boolean | null>(null);
+  const [startingTrial, setStartingTrial] = useState(false);
 
   const triggeredPlan = PLANS.find((p) => p.key === feature)!;
   const TriggeredIcon = triggeredPlan.icon;
+
+  useEffect(() => {
+    fetch("/api/app/subscription")
+      .then((r) => r.json())
+      .then((d) => setTrialUsed(!!d.trialUsed))
+      .catch(() => setTrialUsed(true)); // hide trial CTA if we can't confirm
+  }, []);
+
+  async function handleStartTrial() {
+    setStartingTrial(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/app/trial/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: feature }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Reload so the app picks up the new trial-granted access.
+        window.location.reload();
+        return;
+      }
+      setError(data.message || data.error || "Could not start trial");
+    } catch {
+      setError("Network error. Please try again.");
+    }
+    setStartingTrial(false);
+  }
 
   // Only show plans at or above the triggered feature's tier
   const relevantPlans = PLANS.filter(
@@ -134,8 +166,34 @@ export default function UpgradeModal({
           </p>
         </div>
 
+        {/* Free trial CTA — only if the user hasn't used their one trial */}
+        {trialUsed === false && (
+          <div className="px-5 pt-5">
+            <button
+              onClick={handleStartTrial}
+              disabled={startingTrial || loadingPlan !== null}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {startingTrial ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Gift className="w-4 h-4" />
+              )}
+              Start your free 3-day trial of {triggeredPlan.name}
+            </button>
+            <p className="mt-1.5 text-center text-[11px] text-muted">
+              No credit card required &middot; full access for 3 days
+            </p>
+          </div>
+        )}
+
         {/* Plans */}
         <div className="p-5 space-y-3">
+          {trialUsed === false && (
+            <p className="text-center text-[11px] font-medium uppercase tracking-wider text-muted">
+              or subscribe now
+            </p>
+          )}
           {relevantPlans.map((plan) => {
             const Icon = plan.icon;
             const isTriggered = plan.key === feature;
