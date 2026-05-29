@@ -8,11 +8,10 @@ import {
   personalProfiles,
   dismissedOpportunities,
 } from "@/lib/db";
-import { eq, ne, and, notInArray, inArray, sql } from "drizzle-orm";
+import { eq, and, notInArray, inArray, sql } from "drizzle-orm";
 import {
   matchOpportunities,
   matchPersonalOpportunities,
-  matchContractOpportunities,
 } from "@/lib/ai";
 
 export async function POST(request: NextRequest) {
@@ -29,10 +28,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Load profile. Federal contracts are scored against the org profile, since
-  // contracts are awarded to businesses.
+  // Load profile.
   let profile: Record<string, unknown> | null = null;
-  if (mode === "org" || mode === "contract") {
+  if (mode === "org") {
     const [row] = await db
       .select()
       .from(userProfiles)
@@ -85,22 +83,13 @@ export async function POST(request: NextRequest) {
   const excludeIds = [...new Set([...dismissedIds, ...matchedIds])];
 
   // Eligibility filter by mode:
-  //   contract mode → type = "contract" (federal procurement, ignores audience)
-  //   personal mode → audience personal + both, never contracts
-  //   org mode      → audience business + both, never contracts
-  // "both" is included in personal/org to handle Zeffy grants that fit either.
-  // Contracts are excluded from the grant modes so they only surface in their
-  // own tab.
-  const eligibilityClause =
-    mode === "contract"
-      ? eq(opportunities.type, "contract")
-      : and(
-          inArray(
-            opportunities.audience,
-            mode === "personal" ? ["personal", "both"] : ["business", "both"]
-          ),
-          ne(opportunities.type, "contract")
-        );
+  //   personal mode → audience personal + both
+  //   org mode      → audience business + both
+  // "both" is included in both modes to handle Zeffy grants that fit either.
+  const eligibilityClause = inArray(
+    opportunities.audience,
+    mode === "personal" ? ["personal", "both"] : ["business", "both"]
+  );
 
   // Compose WHERE: status open + eligibility + not-excluded
   const whereClause = and(
@@ -156,8 +145,6 @@ export async function POST(request: NextRequest) {
     const matches =
       mode === "personal"
         ? await matchPersonalOpportunities(profile, allOpps, 20, userId)
-        : mode === "contract"
-        ? await matchContractOpportunities(profile, allOpps, 20, userId)
         : await matchOpportunities(profile, allOpps, 20, userId);
 
     // Save results to DB

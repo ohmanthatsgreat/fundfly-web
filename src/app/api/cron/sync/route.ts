@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { db, opportunities } from "@/lib/db";
 import { sql } from "drizzle-orm";
 import { syncZeffy, enrichZeffyGrants } from "@/lib/ingest-zeffy";
-import { syncGrantsGov, syncSbirGov, syncSamGov } from "@/lib/ingest-gov";
+import { syncGrantsGov, syncSbirGov } from "@/lib/ingest-gov";
 
 // Zeffy deepening fans out into many Algolia queries + batched upserts; give
 // the function room. Vercel Pro caps at 300s.
@@ -22,7 +22,6 @@ export async function GET(request: NextRequest) {
   const results = {
     grantsGov: 0,
     sbirGov: 0,
-    samGov: 0,
     zeffy: { total: 0, inserted: 0, updated: 0, categories: [] as string[], classified: 0 },
     zeffyEnrichment: { enriched: 0, failed: 0 },
     errors: [] as string[],
@@ -40,11 +39,9 @@ export async function GET(request: NextRequest) {
     results.errors.push(`SBIR.gov: ${String(err)}`);
   }
 
-  try {
-    results.samGov = await syncSamGov();
-  } catch (err) {
-    results.errors.push(`SAM.gov: ${String(err)}`);
-  }
+  // SAM.gov (federal contracts) sync is disabled for now — the Federal
+  // Contracts feature was removed pending a revisit. Re-enable syncSamGov here
+  // and restore the matcher/tab when bringing contracts back.
 
   try {
     results.zeffy = await syncZeffy();
@@ -65,7 +62,7 @@ export async function GET(request: NextRequest) {
   const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
   console.log(
-    `[cron/sync] Completed in ${duration}s — Grants.gov: ${results.grantsGov}, SBIR: ${results.sbirGov}, SAM.gov: ${results.samGov}, Zeffy: ${results.zeffy.inserted} new / ${results.zeffy.updated} updated (${results.zeffy.categories.join(", ")}), Audience-classified: ${results.zeffy.classified}, Enriched: ${results.zeffyEnrichment.enriched}, Total: ${count}`
+    `[cron/sync] Completed in ${duration}s — Grants.gov: ${results.grantsGov}, SBIR: ${results.sbirGov}, Zeffy: ${results.zeffy.inserted} new / ${results.zeffy.updated} updated (${results.zeffy.categories.join(", ")}), Audience-classified: ${results.zeffy.classified}, Enriched: ${results.zeffyEnrichment.enriched}, Total: ${count}`
   );
 
   return Response.json({
