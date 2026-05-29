@@ -215,61 +215,96 @@ function mapType(categories: string[]): string {
 
 // ─── Upsert hits into PostgreSQL ────────────────────────────────────
 
-async function upsertZeffy(hits: ZeffyHit[]): Promise<number> {
-  let newCount = 0;
+function hitToRow(hit: ZeffyHit) {
+  const isRecent = hit.lastAwardedAtYear >= new Date().getFullYear() - 2;
+  return {
+    id: `zeffy-${hit.objectID}`,
+    source: "zeffy",
+    sourceUrl: null,
+    title: hit.title,
+    description: buildDescription(hit),
+    agency: hit.organizationName || null,
+    type: mapType(hit.seoCategories),
+    fundingMin: hit.minAmount ? Math.round(hit.minAmount) : null,
+    fundingMax: hit.maxAmount ? Math.round(hit.maxAmount) : null,
+    deadline: null,
+    postedDate: hit.lastAgentRunAt ? hit.lastAgentRunAt.split("T")[0] : null,
+    status: isRecent ? "open" : "closed",
+    audience: "both",
+    location: hit.locationStates?.join(", ") || null,
+    categories: hit.seoCategories?.join(", ") || null,
+    grantUrl: `${ZEFFY_BASE}/${hit.slug}`,
+    rawJson: JSON.stringify(hit),
+  };
+}
 
-  for (const hit of hits) {
-    const isRecent = hit.lastAwardedAtYear >= new Date().getFullYear() - 2;
-    const id = `zeffy-${hit.objectID}`;
+// On conflict, refresh the same content fields. Bulk upserts must read each
+// incoming row's value from the special `excluded` row, hence sql`excluded.*`.
+const ZEFFY_CONFLICT_SET = {
+  title: sql`excluded.title`,
+  description: sql`excluded.description`,
+  agency: sql`excluded.agency`,
+  type: sql`excluded.type`,
+  fundingMin: sql`excluded.funding_min`,
+  fundingMax: sql`excluded.funding_max`,
+  status: sql`excluded.status`,
+  audience: sql`excluded.audience`,
+  location: sql`excluded.location`,
+  categories: sql`excluded.categories`,
+  grantUrl: sql`excluded.grant_url`,
+  updatedAt: sql`now()`,
+};
 
+// `xmax = 0` is true only for a freshly inserted tuple; an ON CONFLICT update
+// leaves a non-zero xmax. That lets one statement report true inserts vs.
+// updates instead of conflating them.
+async function upsertZeffy(
+  hits: ZeffyHit[]
+): Promise<{ inserted: number; updated: number }> {
+  if (hits.length === 0) return { inserted: 0, updated: 0 };
+
+  const rows = hits.map(hitToRow);
+  let inserted = 0;
+  let updated = 0;
+
+  for (let i = 0; i < rows.length; i += UPSERT_CHUNK) {
+    const chunk = rows.slice(i, i + UPSERT_CHUNK);
     try {
       const result = await db
         .insert(opportunities)
-        .values({
-          id,
-          source: "zeffy",
-          sourceUrl: null,
-          title: hit.title,
-          description: buildDescription(hit),
-          agency: hit.organizationName || null,
-          type: mapType(hit.seoCategories),
-          fundingMin: hit.minAmount ? Math.round(hit.minAmount) : null,
-          fundingMax: hit.maxAmount ? Math.round(hit.maxAmount) : null,
-          deadline: null,
-          postedDate: hit.lastAgentRunAt ? hit.lastAgentRunAt.split("T")[0] : null,
-          status: isRecent ? "open" : "closed",
-          audience: "both",
-          location: hit.locationStates?.join(", ") || null,
-          categories: hit.seoCategories?.join(", ") || null,
-          grantUrl: `${ZEFFY_BASE}/${hit.slug}`,
-          rawJson: JSON.stringify(hit),
-        })
+        .values(chunk)
         .onConflictDoUpdate({
           target: opportunities.id,
-          set: {
-            title: hit.title,
-            description: buildDescription(hit),
-            agency: hit.organizationName || null,
-            type: mapType(hit.seoCategories),
-            fundingMin: hit.minAmount ? Math.round(hit.minAmount) : null,
-            fundingMax: hit.maxAmount ? Math.round(hit.maxAmount) : null,
-            status: isRecent ? "open" : "closed",
-            audience: "both",
-            location: hit.locationStates?.join(", ") || null,
-            categories: hit.seoCategories?.join(", ") || null,
-            grantUrl: `${ZEFFY_BASE}/${hit.slug}`,
-            updatedAt: new Date(),
-          },
+          set: ZEFFY_CONFLICT_SET,
         })
-        .returning({ id: opportunities.id });
-
-      if (result.length > 0) newCount++;
+        .returning({ isNew: sql<number>`(xmax = 0)::int` });
+      for (const r of result) {
+        if (r.isNew) inserted++;
+        else updated++;
+      }
     } catch {
-      // Skip individual failures
+      // A bad row would fail the whole chunk, so fall back to per-row upserts
+      // to isolate the failure and keep the rest of the batch.
+      for (const row of chunk) {
+        try {
+          const result = await db
+            .insert(opportunities)
+            .values(row)
+            .onConflictDoUpdate({
+              target: opportunities.id,
+              set: ZEFFY_CONFLICT_SET,
+            })
+            .returning({ isNew: sql<number>`(xmax = 0)::int` });
+          if (result[0]?.isNew) inserted++;
+          else updated++;
+        } catch {
+          // Skip individual failures
+        }
+      }
     }
   }
 
-  return newCount;
+  return { inserted, updated };
 }
 
 // ─── Sync index persistence ────────────────────────────────────────
@@ -351,13 +386,47 @@ const ALL_CATEGORIES = [
   "Suicide Prevention Nonprofits", "Alumni Groups",
 ];
 
-const CATEGORIES_PER_SYNC = 10;
+// How many categories to process per sync run. Each category now issues
+// several Algolia queries (one per amount slice), so this is lower than before
+// to keep a single serverless invocation within its time budget. The rotation
+// pointer advances each run, so the full catalog is still swept over several
+// cron cycles. Override with ZEFFY_CATEGORIES_PER_SYNC.
+const CATEGORIES_PER_SYNC = Number(process.env.ZEFFY_CATEGORIES_PER_SYNC) || 5;
+
+// Upper bound on rows pulled per category per run. Override with
+// ZEFFY_MAX_PER_CATEGORY.
+const MAX_PER_CATEGORY = Number(process.env.ZEFFY_MAX_PER_CATEGORY) || 5000;
+
+// Algolia hard-caps any single query at 1000 hits (paginationLimitedTo) and the
+// browse API needs an admin key we don't have. To pull more than 1000 per
+// category we slice each category query by maxAmount range — each slice returns
+// a different (mostly disjoint) ~1000-row window. The empty slice runs with no
+// amount filter, which both preserves prior behaviour and catches rows whose
+// maxAmount is null.
+const AMOUNT_SLICES: string[] = [
+  "",
+  "maxAmount < 5000",
+  "maxAmount >= 5000 AND maxAmount < 25000",
+  "maxAmount >= 25000 AND maxAmount < 100000",
+  "maxAmount >= 100000 AND maxAmount < 500000",
+  "maxAmount >= 500000",
+];
+
+// Rows per batched upsert. neon-http sends each multi-row insert as one HTTP
+// request, so batching turns thousands of round-trips into a handful.
+const UPSERT_CHUNK = 500;
+
+// Max rows to AI-classify per run. Higher drains the unclassified backlog
+// faster (at proportionally more Haiku cost). Override with
+// ZEFFY_CLASSIFY_LIMIT.
+const CLASSIFY_LIMIT = Number(process.env.ZEFFY_CLASSIFY_LIMIT) || 2000;
 
 // ─── Main sync function ────────────────────────────────────────────
 
 export async function syncZeffy(): Promise<{
   total: number;
   inserted: number;
+  updated: number;
   categories: string[];
   classified: number;
 }> {
@@ -369,12 +438,37 @@ export async function syncZeffy(): Promise<{
 
   let totalHits = 0;
   let totalInserted = 0;
+  let totalUpdated = 0;
 
   for (const category of batch) {
-    const filters = `lastAwardedAtYear >= 2023 AND seoCategories:"${category}"`;
-    const data = await queryAlgolia("", filters, 0, 1000);
-    totalHits += data.nbHits;
-    totalInserted += await upsertZeffy(data.hits);
+    let categoryCount = 0;
+
+    for (const slice of AMOUNT_SLICES) {
+      if (categoryCount >= MAX_PER_CATEGORY) break;
+
+      const filters =
+        `lastAwardedAtYear >= 2023 AND seoCategories:"${category}"` +
+        (slice ? ` AND ${slice}` : "");
+
+      let data;
+      try {
+        data = await queryAlgolia("", filters, 0, 1000);
+      } catch {
+        continue;
+      }
+
+      // Count the category's true size once, from the unfiltered slice.
+      if (!slice) totalHits += data.nbHits;
+
+      const remaining = MAX_PER_CATEGORY - categoryCount;
+      const hitsToUpsert = data.hits.slice(0, remaining);
+      if (hitsToUpsert.length === 0) continue;
+
+      const res = await upsertZeffy(hitsToUpsert);
+      totalInserted += res.inserted;
+      totalUpdated += res.updated;
+      categoryCount += hitsToUpsert.length;
+    }
   }
 
   // Save progress — next sync starts where this one ended
@@ -383,10 +477,9 @@ export async function syncZeffy(): Promise<{
 
   // AI-classify audience for any new or changed rows in this batch.
   // Cached by content hash, so this is cheap on subsequent runs.
-  // Capped at 500/run to bound Haiku cost on big initial sweeps.
   let classified = 0;
   try {
-    const result = await classifyAudienceForSource("zeffy", { limit: 500 });
+    const result = await classifyAudienceForSource("zeffy", { limit: CLASSIFY_LIMIT });
     classified = result.classified;
   } catch (err) {
     console.error("Zeffy audience classification failed:", err);
@@ -395,6 +488,7 @@ export async function syncZeffy(): Promise<{
   return {
     total: totalHits,
     inserted: totalInserted,
+    updated: totalUpdated,
     categories: batch,
     classified,
   };
