@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import crypto from "node:crypto";
 import { db, opportunities } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { recordCallCost } from "@/lib/ai-cost";
 
 /**
@@ -15,7 +15,7 @@ import { recordCallCost } from "@/lib/ai-cost";
  */
 
 const BATCH_SIZE = 10;
-const HAIKU_MODEL = "claude-haiku-4-6";
+const HAIKU_MODEL = "claude-haiku-4-5-20251001";
 
 function getClient(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -125,6 +125,10 @@ export async function classifyAudienceForSource(
   // OR whose content has changed since last classification.
   // We compute the hash in JS and compare client-side — cheaper than a SQL
   // expression that hashes columns.
+  // Never-classified rows (null hash) come first so each run drains the
+  // backlog instead of re-scanning the same already-classified head of the
+  // table. Once the backlog is gone, rows rotate through for stale-content
+  // re-checks via the JS hash compare below.
   const rows = await db
     .select({
       id: opportunities.id,
@@ -135,6 +139,7 @@ export async function classifyAudienceForSource(
     })
     .from(opportunities)
     .where(eq(opportunities.source, source))
+    .orderBy(sql`${opportunities.audienceClassifiedHash} nulls first`)
     .limit(options.limit ?? 1000);
 
   const stale: ClassifyInput[] = [];
@@ -170,9 +175,12 @@ export async function classifyAudienceForSource(
     let results: ClassifyResult[] = [];
     try {
       results = await classifyBatch(batch);
-    } catch {
+    } catch (err) {
       // On Haiku failure, leave the rows alone (no hash update — will retry
       // next time). Better than mass-tagging as "both" with a fresh hash.
+      // Log it: a silent failure here once left the entire Zeffy catalog
+      // unclassified (and "both"), leaking org grants into personal matches.
+      console.error(`[classify-audience] batch failed for "${source}":`, err);
       continue;
     }
     for (const r of results) {

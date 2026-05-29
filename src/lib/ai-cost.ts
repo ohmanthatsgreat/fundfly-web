@@ -19,12 +19,12 @@ const MODEL_PRICING_PER_MTOK: Record<
     cacheRead: 0.3, // 10% of input
     cacheWrite: 3.75, // 125% of input
   },
-  // Haiku 4.6: cheap classification + low-stakes calls
-  "claude-haiku-4-6": {
-    input: 0.25,
-    output: 1.25,
-    cacheRead: 0.025,
-    cacheWrite: 0.3125,
+  // Haiku 4.5: cheap classification + low-stakes calls
+  "claude-haiku-4-5-20251001": {
+    input: 1.0,
+    output: 5.0,
+    cacheRead: 0.1,
+    cacheWrite: 1.25,
   },
   // Opus 4.6: not currently used but defined for safety
   "claude-opus-4-6": {
