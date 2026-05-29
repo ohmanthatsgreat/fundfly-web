@@ -272,6 +272,44 @@ export const aiMatches = pgTable(
   ]
 );
 
+/**
+ * Per-user, per-mode scan cursor for the AI matcher. The scan walks the
+ * eligible opportunity set with a stable ORDER BY id + OFFSET; persisting the
+ * offset server-side means the scan resumes where it left off after the user
+ * navigates away (instead of re-scanning the same first batch forever).
+ */
+export const matchScanState = pgTable(
+  "match_scan_state",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    mode: text("mode").notNull().default("org"), // 'org' | 'personal'
+    scanOffset: integer("scan_offset").default(0).notNull(),
+    scannedCount: integer("scanned_count").default(0).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (t) => [unique("uq_scan_state").on(t.userId, t.mode)]
+);
+
+/**
+ * App-managed free trials. No card is required to start (so these are NOT
+ * Stripe subscriptions). A trial grants the chosen plan's features until
+ * `endsAt`. checkSubscription/getUserFeatures honor an active trial.
+ */
+export const trials = pgTable(
+  "trials",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull().unique(),
+    plan: text("plan").notNull(), // 'matching' | 'checklist' | 'auto_submission' | 'bundle'
+    startedAt: timestamp("started_at").defaultNow().notNull(),
+    endsAt: timestamp("ends_at").notNull(),
+    converted: boolean("converted").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("idx_trials_user").on(t.userId)]
+);
+
 export const dismissedOpportunities = pgTable(
   "dismissed_opportunities",
   {
