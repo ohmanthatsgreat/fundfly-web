@@ -1,4 +1,4 @@
-import { db, opportunities, savedOpportunities, applications } from "@/lib/db";
+import { db, opportunities, savedOpportunities, applications, aiMatches } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { sql, eq, and, gte, inArray, count } from "drizzle-orm";
 
@@ -11,7 +11,7 @@ export async function GET() {
   const todayStr = now.toISOString().split("T")[0];
   const weekStr = weekFromNow.toISOString().split("T")[0];
 
-  const [totalResult, bizGrantsResult, sbirResult, personalResult, savedResult, appsResult, closingSoonResult] =
+  const [totalResult, bizGrantsResult, sbirResult, personalResult, savedResult, appsResult, matchesResult, closingSoonResult] =
     await Promise.all([
       // Total opportunities
       db.select({ count: count() }).from(opportunities),
@@ -45,6 +45,11 @@ export async function GET() {
         .select({ count: count() })
         .from(applications)
         .where(eq(applications.userId, userId)),
+      // AI matches saved for this user (across all modes)
+      db
+        .select({ count: count() })
+        .from(aiMatches)
+        .where(eq(aiMatches.userId, userId)),
       // Closing within 7 days
       db
         .select({ count: count() })
@@ -64,6 +69,7 @@ export async function GET() {
     personal: personalResult[0]?.count || 0,
     saved: savedResult[0]?.count || 0,
     applications: appsResult[0]?.count || 0,
+    matches: matchesResult[0]?.count || 0,
     closingSoon: closingSoonResult[0]?.count || 0,
   });
 }

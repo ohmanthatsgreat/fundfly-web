@@ -36,6 +36,7 @@ type Stats = {
   personal: number;
   saved: number;
   applications: number;
+  matches: number;
   closingSoon: number;
 };
 
@@ -46,6 +47,7 @@ const STAT_KEYS: Record<string, keyof Stats> = {
   "/app/sbir": "sbir",
   "/app/personal": "personal",
   "/app/saved": "saved",
+  "/app/matches": "matches",
   "/app/applications": "applications",
 };
 
