@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Key,
   Clock,
+  DollarSign,
 } from "lucide-react";
 
 type AdminStats = {
@@ -67,6 +68,18 @@ type UserRow = {
   applicationCount: number;
   licenseKey: { key: string; plan: string } | null;
   isAdmin: boolean;
+};
+
+type AiCost = {
+  last30: { costCents: number; calls: number };
+  allTime: { costCents: number; calls: number };
+  systemCents: number;
+  topUsers: {
+    userId: string;
+    email: string | null;
+    costCents: number;
+    calls: number;
+  }[];
 };
 
 type SyncResult = {
@@ -365,9 +378,14 @@ function UserRowItem({
   );
 }
 
+function fmtUsd(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
 export default function AdminPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [aiCost, setAiCost] = useState<AiCost | null>(null);
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
   const [expandedUser, setExpandedUser] = useState<number | null>(null);
@@ -402,6 +420,12 @@ export default function AdminPage() {
 
       setStats(statsData);
       setUsers(usersData.users || []);
+
+      // AI spend is best-effort — don't block the dashboard if it fails.
+      try {
+        const costRes = await fetch("/api/admin/ai-cost");
+        if (costRes.ok) setAiCost(await costRes.json());
+      } catch {}
     } catch {
       setForbidden(true);
     }
@@ -615,6 +639,84 @@ export default function AdminPage() {
             value={stats.opportunitiesBySource.length}
             icon={Database}
           />
+        </div>
+      )}
+
+      {/* AI Spend — founder COGS monitoring */}
+      {aiCost && (
+        <div className="bg-card border border-border rounded-xl p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <DollarSign className="w-5 h-5 text-accent" />
+            <h2 className="font-semibold">AI Spend</h2>
+            <span className="text-xs text-muted">(Anthropic API cost)</span>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div className="bg-surface rounded-lg px-4 py-3 border border-border">
+              <div className="text-xs text-muted mb-1">Last 30 days</div>
+              <div className="text-2xl font-bold">
+                {fmtUsd(aiCost.last30.costCents)}
+              </div>
+              <div className="text-xs text-muted mt-0.5">
+                {aiCost.last30.calls.toLocaleString()} calls
+              </div>
+            </div>
+            <div className="bg-surface rounded-lg px-4 py-3 border border-border">
+              <div className="text-xs text-muted mb-1">All time</div>
+              <div className="text-2xl font-bold">
+                {fmtUsd(aiCost.allTime.costCents)}
+              </div>
+              <div className="text-xs text-muted mt-0.5">
+                {aiCost.allTime.calls.toLocaleString()} calls
+              </div>
+            </div>
+            <div className="bg-surface rounded-lg px-4 py-3 border border-border">
+              <div className="text-xs text-muted mb-1">System (30d)</div>
+              <div className="text-2xl font-bold">
+                {fmtUsd(aiCost.systemCents)}
+              </div>
+              <div className="text-xs text-muted mt-0.5">
+                crons, blog, classification
+              </div>
+            </div>
+            <div className="bg-surface rounded-lg px-4 py-3 border border-border">
+              <div className="text-xs text-muted mb-1">User (30d)</div>
+              <div className="text-2xl font-bold">
+                {fmtUsd(
+                  Math.max(0, aiCost.last30.costCents - aiCost.systemCents)
+                )}
+              </div>
+              <div className="text-xs text-muted mt-0.5">billable users</div>
+            </div>
+          </div>
+
+          {aiCost.topUsers.length > 0 && (
+            <div>
+              <div className="text-xs text-muted font-medium mb-2">
+                Top spenders (last 30 days)
+              </div>
+              <div className="space-y-1.5">
+                {aiCost.topUsers.map((u) => (
+                  <div
+                    key={u.userId}
+                    className="flex items-center gap-3 text-xs bg-surface rounded-md px-3 py-2 border border-border"
+                  >
+                    <span className="flex-1 min-w-0 truncate">
+                      {u.email || (
+                        <span className="font-mono text-muted">{u.userId}</span>
+                      )}
+                    </span>
+                    <span className="text-muted">
+                      {u.calls.toLocaleString()} calls
+                    </span>
+                    <span className="font-semibold tabular-nums">
+                      {fmtUsd(u.costCents)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

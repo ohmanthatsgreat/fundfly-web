@@ -1,15 +1,18 @@
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, getEffectiveAiCapCents } from "@/lib/auth";
 import { db, aiUsage, aiCredits, customers, subscriptions } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
-
-const CAP_CENTS = 10000; // $100 — must match AUTO_SUB_CAP_CENTS in auth.ts
 
 /**
  * Returns the user's current AI usage for this billing period.
  *
+ * The cap is tier-aware (see getEffectiveAiCapCents): $15 for the Matching
+ * tier, $100 for Auto-Submission/Bundle, and uncapped (null) for Checklist or
+ * admin-bypass users.
+ *
  * Shape: {
  *   costCents:    spent so far this period
- *   capCents:     $100 cap (10000)
+ *   capCents:     tier cap in cents, or null when uncapped
+ *   uncapped:     true when there is no enforced cap
  *   creditsCents: purchased credits available beyond the cap
  *   requestCount: total AI calls this period
  *   percentUsed:  0-100 (capped at 100, doesn't account for credits)
@@ -20,6 +23,9 @@ const CAP_CENTS = 10000; // $100 — must match AUTO_SUB_CAP_CENTS in auth.ts
  */
 export async function GET() {
   const userId = await requireAuth();
+
+  const capCents = await getEffectiveAiCapCents(userId);
+  const uncapped = capCents === null;
 
   // Determine billing period start. Tied to auto_submission sub if any,
   // else first of current month.
@@ -72,13 +78,20 @@ export async function GET() {
   const costCents = usage?.totalCostCents ?? 0;
   const creditsCents = credits?.balanceCents ?? 0;
   const requestCount = usage?.requestCount ?? 0;
-  const percentUsed = Math.min(100, Math.round((costCents / CAP_CENTS) * 100));
-  const atWarning = costCents >= CAP_CENTS * 0.8;
-  const atLimit = costCents >= CAP_CENTS && creditsCents <= 0;
+
+  // Uncapped tiers (checklist / admin bypass) have no meter math.
+  const percentUsed = uncapped
+    ? 0
+    : Math.min(100, Math.round((costCents / capCents!) * 100));
+  const atWarning = uncapped ? false : costCents >= capCents! * 0.8;
+  const atLimit = uncapped
+    ? false
+    : costCents >= capCents! && creditsCents <= 0;
 
   return Response.json({
     costCents,
-    capCents: CAP_CENTS,
+    capCents,
+    uncapped,
     creditsCents,
     requestCount,
     percentUsed,
