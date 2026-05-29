@@ -16,6 +16,7 @@ interface Application {
   id: number;
   opportunityId: string;
   status: string;
+  mode: string | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -78,6 +79,7 @@ function ApplicationsContent() {
   const [savingId, setSavingId] = useState<number | null>(null);
   const [workspaceId, setWorkspaceId] = useState<number | null>(null);
   const [workspaceView, setWorkspaceView] = useState<"workspace" | "submission">("workspace");
+  const [modeFilter, setModeFilter] = useState<"business" | "personal">("business");
 
   const fetchApps = useCallback(async () => {
     try {
@@ -159,10 +161,17 @@ function ApplicationsContent() {
     );
   }
 
-  // Group applications by status
+  // Split by business / personal (mode is set when the application is created;
+  // legacy rows without a mode default to business).
+  const appMode = (a: Application) => (a.mode === "personal" ? "personal" : "business");
+  const businessCount = apps.filter((a) => appMode(a) === "business").length;
+  const personalCount = apps.filter((a) => appMode(a) === "personal").length;
+  const visibleApps = apps.filter((a) => appMode(a) === modeFilter);
+
+  // Group the active tab's applications by status
   const grouped = STATUS_STEPS.reduce(
     (acc, s) => {
-      acc[s] = apps.filter((a) => a.status === s);
+      acc[s] = visibleApps.filter((a) => a.status === s);
       return acc;
     },
     {} as Record<string, Application[]>
@@ -179,6 +188,32 @@ function ApplicationsContent() {
         </div>
       </div>
 
+      {/* Business / Personal tabs */}
+      {!loading && apps.length > 0 && (
+        <div className="flex gap-1 bg-surface rounded-lg p-1 w-fit mb-6">
+          <button
+            onClick={() => setModeFilter("business")}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              modeFilter === "business"
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted hover:text-foreground"
+            }`}
+          >
+            Business{businessCount > 0 ? ` (${businessCount})` : ""}
+          </button>
+          <button
+            onClick={() => setModeFilter("personal")}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              modeFilter === "personal"
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted hover:text-foreground"
+            }`}
+          >
+            Personal{personalCount > 0 ? ` (${personalCount})` : ""}
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-6 h-6 animate-spin text-muted" />
@@ -192,6 +227,19 @@ function ApplicationsContent() {
           <p className="text-sm text-muted max-w-sm">
             Start tracking applications by clicking &quot;Track
             Application&quot; on any opportunity.
+          </p>
+        </div>
+      ) : visibleApps.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="w-14 h-14 rounded-xl bg-surface flex items-center justify-center mb-4">
+            <FileText size={24} className="text-muted" />
+          </div>
+          <h3 className="text-sm font-semibold mb-1">
+            No {modeFilter} applications
+          </h3>
+          <p className="text-sm text-muted max-w-sm">
+            You don&apos;t have any {modeFilter} applications yet. Start one from
+            a {modeFilter === "personal" ? "personal" : "business"} opportunity.
           </p>
         </div>
       ) : (

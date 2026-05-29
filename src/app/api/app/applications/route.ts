@@ -99,6 +99,7 @@ export async function GET(request: NextRequest) {
       id: applications.id,
       opportunityId: applications.opportunityId,
       status: applications.status,
+      mode: applications.mode,
       notes: applications.notes,
       createdAt: applications.createdAt,
       updatedAt: applications.updatedAt,
