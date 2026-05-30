@@ -1,6 +1,6 @@
 # FundFly — Working Backlog
 
-_Last updated: 2026-05-30 (AI cost audit #2 — instrumentation shipped)._
+_Last updated: 2026-05-30 (AI cost audit #2 — shipped to prod & deployed)._
 
 **Working method (context-safety):** tackle ONE item — or one batched group — per
 **fresh** session. Start each session by reading this file plus only the files named
@@ -63,25 +63,24 @@ context small so we don't get cut off mid-task.
      ~⅓ input (scales with opps scanned) + ~⅔ output (scales with matches ×
      rationale). The effective lever is model choice + output length, not
      caching.
-   **Shipped this session (instrumentation only, no behavior change):**
+   **Shipped this session — DEPLOYED to prod (`main`, Vercel):**
    - New append-only table `ai_usage_events` (`schema.ts`) — one row per call
-     with `feature`, `model`, `cost_cents`, and raw token counts. Schema is
-     applied via `npx drizzle-kit push` (the `/drizzle/` dir is gitignored —
-     push syncs `schema.ts` → DB directly, no committed migration files).
-     **Run `drizzle-kit push` against prod on deploy** so `ai_usage_events`
-     exists; until then event inserts no-op (caught + logged, requests
-     unaffected) and `byFeature` stays empty.
+     with `feature`, `model`, `cost_cents`, and raw token counts. ✅ **Applied to
+     prod via `drizzle-kit push`** (the `/drizzle/` dir is gitignored — push
+     syncs `schema.ts` → DB directly, no committed migration files). Table
+     verified present (10 cols), now logging live.
    - `recordCallCost`/`recordCallCostSync` now take an `AiFeature` arg and log an
      event row in addition to the existing aggregate (`ai-cost.ts`). Aggregate /
      cap logic untouched.
-   - Threaded `feature` through all 8 call sites: enhance, match_org,
+   - Threaded `feature` through all 9 call sites: enhance, match_org,
      match_personal, generate_application, generate_section, submission_plan,
-     classify_audience, blog, + worker route (submission_agent).
-   - Admin endpoint `GET /api/admin/ai-cost` now returns a `byFeature` breakdown
-     (lifetime cost, calls, tokens, avg cost/call) — the real unit-cost data #3
-     needs. (Admin UI still only renders spenders; surfacing `byFeature` in the
-     admin page is a small follow-up.)
-   - **Verify:** `npx tsc --noEmit` passed; run `drizzle-kit push`, let real
+     classify_audience, blog, submission_agent (worker route). (Note: the
+     submission_plan + classify_audience tags were initially missed by a
+     find/replace and fixed before merge.)
+   - Admin endpoint `GET /api/admin/ai-cost` returns a `byFeature` breakdown
+     (lifetime cost, calls, tokens, avg cost/call), AND the admin page
+     (`app/admin/page.tsx`) renders it as a "Cost by feature" table.
+   - **Verify:** `npx tsc --noEmit` passed; `drizzle-kit push` done. Let real
      traffic accrue a day, then read `byFeature` to get true unit costs before #3.
 
    **Matching cost cut shipped (2026-05-30):**
@@ -102,6 +101,21 @@ context small so we don't get cut off mid-task.
    - **Watch after deploy:** spot-check a few matches for quality on Haiku. If
      reasoning quality regresses, the fallback is the two-pass design (Haiku
      scores → Sonnet writes reasoning for top matches only).
+
+   **⚠️ Regression caught + fixed same-day (2026-05-30):** the Haiku swap broke
+   AI Matching — Haiku nondeterministically returns `"score": "42"` (a STRING),
+   while the match-save filter required `typeof m.score === "number"`, so every
+   stringified match was silently dropped (scan "completed" with 0 matches and
+   still advanced its cursor). Surfaced as personal matching "initiating then
+   ending immediately"; org was hitting it intermittently too. **Fix:** added
+   `normalizeMatches()` in `lib/ai.ts` (coerces `score` via `Number()`,
+   validates with `Number.isFinite`, applied at both parse boundaries; also
+   tolerant of the ```json fences Haiku adds) + changed the route filter to
+   `Number.isFinite(m.score)`. Deployed (`main` @ `7462f4a`). Personal scan
+   cursors reset to 0 so the fixed parser re-scans the ~2,500 opps the bug
+   dropped (matches upsert, so re-scan is safe). **Lesson:** swapping models
+   changes the JSON-type contract downstream code depends on — validate parse
+   output, don't trust the model to emit a given type.
 
 ## P1 — monetization redesign (depends on #2)
 3. **Prepaid credits model.** Replace/augment flat subscription with AI credits:
