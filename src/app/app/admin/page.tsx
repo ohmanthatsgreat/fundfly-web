@@ -67,6 +67,14 @@ type UserRow = {
   }[];
   applicationCount: number;
   licenseKey: { key: string; plan: string } | null;
+  trial: {
+    plan: string;
+    startedAt: string;
+    endsAt: string;
+    converted: boolean;
+    active: boolean;
+    daysLeft: number;
+  } | null;
   isAdmin: boolean;
 };
 
@@ -234,6 +242,18 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function TrialBadge({ active }: { active: boolean }) {
+  return (
+    <span
+      className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-md ${
+        active ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"
+      }`}
+    >
+      {active ? "Trial" : "Trial ended"}
+    </span>
+  );
+}
+
 function UserRowItem({
   user,
   expanded,
@@ -277,6 +297,8 @@ function UserRowItem({
               </span>
               <StatusBadge status={user.subscription.status} />
             </div>
+          ) : user.trial ? (
+            <TrialBadge active={user.trial.active} />
           ) : (
             <span className="text-xs text-muted">Free</span>
           )}
@@ -332,6 +354,51 @@ function UserRowItem({
               </div>
             )}
           </div>
+
+          {user.trial && (
+            <div className="bg-card rounded-md p-3 border border-border">
+              <div className="flex items-center gap-2 mb-2">
+                <Clock className="w-3.5 h-3.5 text-accent" />
+                <span className="text-sm font-medium">Free Trial</span>
+                <TrialBadge active={user.trial.active} />
+                {user.trial.converted && (
+                  <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">
+                    Converted
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-xs">
+                <div>
+                  <span className="text-muted block mb-0.5">Plan</span>
+                  <span className="capitalize">
+                    {user.trial.plan.replace(/_/g, " ")}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted block mb-0.5">
+                    {user.trial.active ? "Days left" : "Status"}
+                  </span>
+                  <span>
+                    {user.trial.active
+                      ? `${user.trial.daysLeft} day${user.trial.daysLeft === 1 ? "" : "s"}`
+                      : "Ended"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted block mb-0.5">Started</span>
+                  <span>
+                    {new Date(user.trial.startedAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted block mb-0.5">Ends</span>
+                  <span>
+                    {new Date(user.trial.endsAt).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {user.allSubscriptions.length > 0 && (
             <div>

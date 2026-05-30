@@ -8,6 +8,8 @@ import { Brain, Loader2, Sparkles, ChevronDown, ChevronUp, RotateCcw, Search } f
 import OpportunityCard, { type Opportunity } from "@/components/OpportunityCard";
 import OpportunityDetail from "@/components/OpportunityDetail";
 import UpgradeModal from "@/components/UpgradeModal";
+import ActionToast from "@/components/ActionToast";
+import { startApplication } from "@/lib/start-application";
 
 interface Match {
   id: number;
@@ -115,6 +117,10 @@ export default function MatchesPage() {
   const [userPlan, setUserPlan] = useState<string | null>(null);
   const [selected, setSelected] = useState<Opportunity | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [actionError, setActionError] = useState<{
+    message: string;
+    profilePath: string | null;
+  } | null>(null);
 
   const handleSave = async (id: string) => {
     setSavedIds((prev) => new Set(prev).add(id));
@@ -248,19 +254,12 @@ export default function MatchesPage() {
    * No upgrade gate here so free users can also start an application.
    */
   async function handleNextStep(opp: Opportunity) {
-    const res = await fetch("/api/app/applications", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ opportunityId: opp.id }),
-    });
-    const data = await res.json();
-    const appId = data.application?.id;
-    if (!appId) return;
-
-    const hasAutoSub =
-      !!userPlan && ["auto_submission", "bundle"].includes(userPlan);
-    const view = hasAutoSub ? "submission" : "workspace";
-    router.push(`/app/applications?id=${appId}&view=${view}`);
+    const result = await startApplication(opp.id, userPlan);
+    if (!result.ok) {
+      setActionError({ message: result.error, profilePath: result.profilePath });
+      return;
+    }
+    router.push(`/app/applications?id=${result.appId}&view=${result.view}`);
   }
 
   return (
@@ -701,6 +700,23 @@ export default function MatchesPage() {
           onSave={handleSave}
           onUnsave={handleUnsave}
           onSelectSimilar={(opp) => setSelected(opp)}
+        />
+      )}
+
+      {actionError && (
+        <ActionToast
+          message={actionError.message}
+          actionLabel={actionError.profilePath ? "Set up profile" : undefined}
+          onAction={
+            actionError.profilePath
+              ? () => {
+                  const path = actionError.profilePath!;
+                  setActionError(null);
+                  router.push(path);
+                }
+              : undefined
+          }
+          onDismiss={() => setActionError(null)}
         />
       )}
     </div>

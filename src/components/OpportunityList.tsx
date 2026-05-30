@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 import OpportunityCard, { type Opportunity } from "./OpportunityCard";
 import OpportunityDetail from "./OpportunityDetail";
+import ActionToast from "./ActionToast";
+import { startApplication } from "@/lib/start-application";
 
 interface Props {
   endpoint?: string;
@@ -29,6 +31,10 @@ export default function OpportunityList({
   const [sort, setSort] = useState("deadline_asc");
   const [selected, setSelected] = useState<Opportunity | null>(null);
   const [userPlan, setUserPlan] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<{
+    message: string;
+    profilePath: string | null;
+  } | null>(null);
 
   // Advanced filters
   const [showFilters, setShowFilters] = useState(false);
@@ -160,22 +166,13 @@ export default function OpportunityList({
    * Saved folder. There's no separate "track" action.
    */
   async function handleNextStep(opp: Opportunity) {
-    const res = await fetch("/api/app/applications", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ opportunityId: opp.id }),
-    });
-    const data = await res.json();
-    const appId = data.application?.id;
-    if (!appId) return;
-
-    // Auto-submission users default to the submission view (one extra step
-    // closer to their goal); everyone else opens the workspace.
-    const hasAutoSub =
-      !!userPlan && ["auto_submission", "bundle"].includes(userPlan);
-    const view = hasAutoSub ? "submission" : "workspace";
+    const result = await startApplication(opp.id, userPlan);
+    if (!result.ok) {
+      setActionError({ message: result.error, profilePath: result.profilePath });
+      return;
+    }
     setSelected(null);
-    router.push(`/app/applications?id=${appId}&view=${view}`);
+    router.push(`/app/applications?id=${result.appId}&view=${result.view}`);
   }
 
   const totalPages = Math.ceil(total / limit);
@@ -378,6 +375,23 @@ export default function OpportunityList({
         />
       )}
 
+      {actionError && (
+        <ActionToast
+          message={actionError.message}
+          actionLabel={actionError.profilePath ? "Set up profile" : undefined}
+          onAction={
+            actionError.profilePath
+              ? () => {
+                  const path = actionError.profilePath!;
+                  setActionError(null);
+                  setSelected(null);
+                  router.push(path);
+                }
+              : undefined
+          }
+          onDismiss={() => setActionError(null)}
+        />
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import {
   subscriptions,
   applications,
   licenseKeys,
+  trials,
 } from "@/lib/db";
 import { sql, eq, desc } from "drizzle-orm";
 
@@ -59,6 +60,10 @@ export async function GET() {
       ? await db.select().from(licenseKeys)
       : [];
 
+  // Get no-card trials (keyed by Clerk user id, not customer id)
+  const allTrials =
+    allCustomers.length > 0 ? await db.select().from(trials) : [];
+
   // Map by customer ID
   const subsByCustomer = new Map<number, typeof allSubs>();
   for (const sub of allSubs) {
@@ -79,6 +84,11 @@ export async function GET() {
     keysByCustomer.set(key.customerId, existing);
   }
 
+  const trialByUser = new Map<string, (typeof allTrials)[number]>();
+  for (const t of allTrials) {
+    trialByUser.set(t.userId, t);
+  }
+
   const users = allCustomers.map((c) => {
     const subs = subsByCustomer.get(c.id) || [];
     const activeSub = subs.find(
@@ -86,6 +96,7 @@ export async function GET() {
     );
     const keys = keysByCustomer.get(c.id) || [];
     const activeKey = keys.find((k) => k.active);
+    const trial = trialByUser.get(c.clerkUserId) || null;
 
     return {
       id: c.id,
@@ -114,6 +125,19 @@ export async function GET() {
       applicationCount: appCountByUser.get(c.clerkUserId) || 0,
       licenseKey: activeKey
         ? { key: activeKey.key, plan: activeKey.plan }
+        : null,
+      trial: trial
+        ? {
+            plan: trial.plan,
+            startedAt: trial.startedAt,
+            endsAt: trial.endsAt,
+            converted: trial.converted,
+            active: trial.endsAt > new Date(),
+            daysLeft: Math.max(
+              0,
+              Math.ceil((trial.endsAt.getTime() - Date.now()) / 86_400_000)
+            ),
+          }
         : null,
       isAdmin: ADMIN_USER_IDS.includes(c.clerkUserId),
     };

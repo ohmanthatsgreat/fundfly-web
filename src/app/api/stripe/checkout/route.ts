@@ -45,42 +45,57 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const customer = await getOrCreateCustomer(
-    userId,
-    user.emailAddresses[0]?.emailAddress || "",
-    `${user.firstName || ""} ${user.lastName || ""}`.trim() || undefined
-  );
+  try {
+    const customer = await getOrCreateCustomer(
+      userId,
+      user.emailAddresses[0]?.emailAddress || "",
+      `${user.firstName || ""} ${user.lastName || ""}`.trim() || undefined
+    );
 
-  // Get or create Stripe customer
-  let stripeCustomerId = customer.stripeCustomerId;
-  if (!stripeCustomerId) {
-    const stripeCustomer = await stripe.customers.create({
-      email: customer.email,
-      name: customer.name || undefined,
-      metadata: { clerkUserId: userId },
+    // Get or create Stripe customer
+    let stripeCustomerId = customer.stripeCustomerId;
+    if (!stripeCustomerId) {
+      const stripeCustomer = await stripe.customers.create({
+        email: customer.email,
+        name: customer.name || undefined,
+        metadata: { clerkUserId: userId },
+      });
+      stripeCustomerId = stripeCustomer.id;
+
+      const { db, customers: customersTable } = await import("@/lib/db");
+      const { eq } = await import("drizzle-orm");
+      await db
+        .update(customersTable)
+        .set({ stripeCustomerId, updatedAt: new Date() })
+        .where(eq(customersTable.id, customer.id));
+    }
+
+    const baseUrl = getBaseUrl(request);
+
+    const session = await stripe.checkout.sessions.create({
+      customer: stripeCustomerId,
+      mode: "subscription",
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${baseUrl}/app/settings?success=true`,
+      cancel_url: `${baseUrl}/pricing`,
+      allow_promotion_codes: true,
+      metadata: { plan, customerId: String(customer.id) },
+      ...(referral ? { client_reference_id: referral } : {}),
     });
-    stripeCustomerId = stripeCustomer.id;
 
-    const { db, customers: customersTable } = await import("@/lib/db");
-    const { eq } = await import("drizzle-orm");
-    await db
-      .update(customersTable)
-      .set({ stripeCustomerId, updatedAt: new Date() })
-      .where(eq(customersTable.id, customer.id));
+    return Response.json({ url: session.url });
+  } catch (err) {
+    // Stripe (or the customer upsert) throws on misconfiguration — most often a
+    // live secret key paired with test-mode price IDs ("No such price"), or a
+    // missing STRIPE_SECRET_KEY. Without this catch the route returned an
+    // unhandled 500 with a non-JSON body, so the client's res.json() blew up and
+    // showed a meaningless "Network error." Surface the real reason instead.
+    const message =
+      err instanceof Error ? err.message : "Unexpected checkout error";
+    console.error("[checkout] Stripe session creation failed:", message);
+    return Response.json(
+      { error: `Could not start checkout: ${message}` },
+      { status: 500 }
+    );
   }
-
-  const baseUrl = getBaseUrl(request);
-
-  const session = await stripe.checkout.sessions.create({
-    customer: stripeCustomerId,
-    mode: "subscription",
-    line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${baseUrl}/app/settings?success=true`,
-    cancel_url: `${baseUrl}/pricing`,
-    allow_promotion_codes: true,
-    metadata: { plan, customerId: String(customer.id) },
-    ...(referral ? { client_reference_id: referral } : {}),
-  });
-
-  return Response.json({ url: session.url });
 }

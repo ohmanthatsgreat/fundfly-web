@@ -2,6 +2,7 @@
 
 import AppSidebar from "@/components/AppSidebar";
 import TourProvider from "@/components/TourProvider";
+import MobileTrialBadge from "@/components/MobileTrialBadge";
 import { useState } from "react";
 import { Menu } from "lucide-react";
 
@@ -25,6 +26,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
           <span className="font-semibold text-sm">FundFly</span>
         </div>
+        <MobileTrialBadge />
       </div>
 
       {/* Mobile overlay */}

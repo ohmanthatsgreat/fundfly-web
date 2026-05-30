@@ -90,7 +90,8 @@ export default function UpgradeModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan: feature }),
       });
-      const data = await res.json();
+      const data: { success?: boolean; message?: string; error?: string } =
+        await res.json().catch(() => ({}));
       if (data.success) {
         // Reload so the app picks up the new trial-granted access.
         window.location.reload();
@@ -121,12 +122,16 @@ export default function UpgradeModal({
           referral: (window as any).Rewardful?.referral || undefined,
         }),
       });
-      const data = await res.json();
+      // Parse defensively: a 500 with a non-JSON body would otherwise throw here
+      // and get reported as a "Network error," masking a real server failure.
+      const data: { url?: string; error?: string } = await res
+        .json()
+        .catch(() => ({}));
       if (data.url) {
-        window.location.href = data.url;
+        window.location.assign(data.url);
         return;
       }
-      setError(data.error || "Failed to start checkout");
+      setError(data.error || "Failed to start checkout. Please try again.");
     } catch {
       setError("Network error. Please try again.");
     }

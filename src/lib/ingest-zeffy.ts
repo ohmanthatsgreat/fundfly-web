@@ -1,5 +1,5 @@
 import { db, opportunities, userSettings } from "@/lib/db";
-import { eq, and, isNull, isNotNull, asc, sql } from "drizzle-orm";
+import { eq, and, isNull, isNotNull, sql } from "drizzle-orm";
 import { classifyAudienceForSource } from "@/lib/classify-audience";
 
 const ALGOLIA_APP_ID = "22BX5DVBCL";
@@ -230,7 +230,7 @@ function hitToRow(hit: ZeffyHit) {
     deadline: null,
     postedDate: hit.lastAgentRunAt ? hit.lastAgentRunAt.split("T")[0] : null,
     status: isRecent ? "open" : "closed",
-    audience: "both",
+    audience: "business",
     location: hit.locationStates?.join(", ") || null,
     categories: hit.seoCategories?.join(", ") || null,
     grantUrl: `${ZEFFY_BASE}/${hit.slug}`,
@@ -240,6 +240,10 @@ function hitToRow(hit: ZeffyHit) {
 
 // On conflict, refresh the same content fields. Bulk upserts must read each
 // incoming row's value from the special `excluded` row, hence sql`excluded.*`.
+// `audience` is deliberately NOT refreshed: the AI classifier owns that column
+// after insert, and overwriting it here (without also clearing
+// audience_classified_hash) would silently revert classification on every
+// re-sync and starve the personal pool.
 const ZEFFY_CONFLICT_SET = {
   title: sql`excluded.title`,
   description: sql`excluded.description`,
@@ -248,7 +252,6 @@ const ZEFFY_CONFLICT_SET = {
   fundingMin: sql`excluded.funding_min`,
   fundingMax: sql`excluded.funding_max`,
   status: sql`excluded.status`,
-  audience: sql`excluded.audience`,
   location: sql`excluded.location`,
   categories: sql`excluded.categories`,
   grantUrl: sql`excluded.grant_url`,
