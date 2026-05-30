@@ -125,6 +125,32 @@ export type MatchRun = {
   costCents: number;
 };
 
+/**
+ * Coerce a model-returned JSON match array into clean MatchResult rows.
+ * Models are inconsistent about JSON types — Sonnet tends to emit numeric
+ * `score`, Haiku often stringifies it ("42"). Normalize `score` to a real
+ * number and drop anything without a usable id/score so a single sloppy row
+ * (or a stringified number) can't silently zero out a whole batch downstream.
+ */
+function normalizeMatches(parsed: unknown): MatchResult[] {
+  if (!Array.isArray(parsed)) return [];
+  const out: MatchResult[] = [];
+  for (const m of parsed as Record<string, unknown>[]) {
+    if (!m || typeof m !== "object") continue;
+    const id = m.opportunity_id;
+    const score = Number(m.score);
+    if (typeof id !== "string" || !id || !Number.isFinite(score)) continue;
+    out.push({
+      opportunity_id: id,
+      score,
+      summary: typeof m.summary === "string" ? m.summary : "",
+      match_reasoning:
+        typeof m.match_reasoning === "string" ? m.match_reasoning : "",
+    });
+  }
+  return out;
+}
+
 export async function matchOpportunities(
   profile: ProfileLike,
   opportunities: OppLike[],
@@ -174,8 +200,7 @@ Be concise — single sentences only. Only include opportunities with a score of
     try {
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        const parsed: MatchResult[] = JSON.parse(jsonMatch[0]);
-        allMatches.push(...parsed);
+        allMatches.push(...normalizeMatches(JSON.parse(jsonMatch[0])));
       }
     } catch {
       // skip unparseable batch
@@ -243,8 +268,7 @@ Be concise — single sentences only. Only include opportunities with a score of
     try {
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        const parsed: MatchResult[] = JSON.parse(jsonMatch[0]);
-        allMatches.push(...parsed);
+        allMatches.push(...normalizeMatches(JSON.parse(jsonMatch[0])));
       }
     } catch {
       // skip unparseable batch

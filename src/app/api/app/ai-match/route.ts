@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
     // Save results to DB
     let totalMatches = 0;
     for (const m of matches) {
-      if (m.opportunity_id && typeof m.score === "number") {
+      if (m.opportunity_id && Number.isFinite(m.score)) {
         await db
           .insert(aiMatches)
           .values({
