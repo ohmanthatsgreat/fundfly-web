@@ -1,7 +1,25 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { recordAiUsage } from "@/lib/auth";
-import { db, subscriptions, customers } from "@/lib/db";
+import { db, subscriptions, customers, aiUsageEvents } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
+
+/**
+ * Which product feature triggered an AI call. Threaded into recordCallCost so
+ * the append-only `ai_usage_events` log captures REAL per-feature unit cost —
+ * the data needed to design the prepaid-credits pricing model (backlog #3).
+ * "other" is the default for any call site that hasn't been tagged yet.
+ */
+export type AiFeature =
+  | "enhance"
+  | "match_org"
+  | "match_personal"
+  | "generate_application"
+  | "generate_section"
+  | "submission_plan"
+  | "submission_agent"
+  | "classify_audience"
+  | "blog"
+  | "other";
 
 /**
  * Per-model pricing in USD per 1M tokens. Updated 2026-05-24.
@@ -45,6 +63,16 @@ type UsageLike = {
   cache_read_input_tokens?: number | null;
 } | null | undefined;
 
+/** Normalize a usage object to non-negative integer token counts. */
+function extractTokens(usage: UsageLike) {
+  return {
+    input: usage?.input_tokens ?? 0,
+    output: usage?.output_tokens ?? 0,
+    cacheWrite: usage?.cache_creation_input_tokens ?? 0,
+    cacheRead: usage?.cache_read_input_tokens ?? 0,
+  };
+}
+
 /**
  * Compute the dollar cost (in cents) of a single Claude API call from its
  * usage object. Returns a non-negative integer suitable for storage.
@@ -53,11 +81,7 @@ export function computeCostCents(model: string, usage: UsageLike): number {
   if (!usage) return 0;
 
   const rates = MODEL_PRICING_PER_MTOK[model] ?? DEFAULT_PRICING;
-
-  const input = usage.input_tokens ?? 0;
-  const output = usage.output_tokens ?? 0;
-  const cacheWrite = usage.cache_creation_input_tokens ?? 0;
-  const cacheRead = usage.cache_read_input_tokens ?? 0;
+  const { input, output, cacheWrite, cacheRead } = extractTokens(usage);
 
   const dollars =
     (input / 1_000_000) * rates.input +
@@ -68,6 +92,33 @@ export function computeCostCents(model: string, usage: UsageLike): number {
   // Round up to the next cent to be conservative — better to over-bill
   // ourselves than under-bill at the cap.
   return Math.ceil(dollars * 100);
+}
+
+/**
+ * Append one row to the per-call usage log. Best-effort: never throws.
+ * Captures the feature + raw token counts so we can compute true per-feature
+ * unit economics. Logged even for $0 calls (as long as usage is present) so
+ * token-level data isn't lost on tiny calls.
+ */
+async function logUsageEvent(
+  userId: string | null,
+  feature: AiFeature,
+  model: string,
+  usage: UsageLike,
+  costCents: number
+): Promise<void> {
+  if (!usage) return;
+  const { input, output, cacheWrite, cacheRead } = extractTokens(usage);
+  await db.insert(aiUsageEvents).values({
+    userId: userId ?? "__system__",
+    feature,
+    model,
+    costCents,
+    inputTokens: input,
+    outputTokens: output,
+    cacheReadTokens: cacheRead,
+    cacheWriteTokens: cacheWrite,
+  });
 }
 
 /**
@@ -110,22 +161,27 @@ async function getPeriodStart(userId: string | null): Promise<Date> {
 }
 
 /**
- * Record the cost of an AI call against a user's billing period.
- * Safe to call without awaiting — failure here must not break the user-facing
- * request. Errors are logged and swallowed.
+ * Record the cost of an AI call against a user's billing period AND append a
+ * per-feature row to the usage-events log. Safe to call without awaiting —
+ * failure here must not break the user-facing request. Errors are logged and
+ * swallowed.
  *
  * `userId` may be null for system-level calls (e.g. cron blog generation,
  * Zeffy audience classification) — in that case, cost is logged against the
  * `__system__` user so it appears in admin dashboards but doesn't affect
  * any real user's cap.
+ *
+ * `feature` tags the call so we can measure true per-feature unit costs.
  */
 export async function recordCallCost(
   userId: string | null,
   model: string,
-  response: { usage?: UsageLike } | Anthropic.Message
+  response: { usage?: UsageLike } | Anthropic.Message,
+  feature: AiFeature = "other"
 ): Promise<void> {
   try {
     const cost = computeCostCents(model, response.usage);
+    await logUsageEvent(userId, feature, model, response.usage, cost);
     if (cost === 0) return;
     const periodStart = await getPeriodStart(userId);
     await recordAiUsage(userId ?? "__system__", cost, periodStart);
@@ -142,10 +198,12 @@ export async function recordCallCost(
 export async function recordCallCostSync(
   userId: string | null,
   model: string,
-  response: { usage?: UsageLike } | Anthropic.Message
+  response: { usage?: UsageLike } | Anthropic.Message,
+  feature: AiFeature = "other"
 ): Promise<number> {
   try {
     const cost = computeCostCents(model, response.usage);
+    await logUsageEvent(userId, feature, model, response.usage, cost);
     if (cost === 0) return 0;
     const periodStart = await getPeriodStart(userId);
     await recordAiUsage(userId ?? "__system__", cost, periodStart);

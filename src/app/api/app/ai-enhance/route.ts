@@ -38,7 +38,7 @@ ${value}`,
         },
       ],
     });
-    await recordCallCost(userId, model, response);
+    await recordCallCost(userId, model, response, "enhance");
 
     const text = response.content[0].type === "text" ? response.content[0].text : value;
     return Response.json({ enhanced: text.trim() });

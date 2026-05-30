@@ -87,7 +87,7 @@ No prose, just JSON.`;
     max_tokens: 800,
     messages: [{ role: "user", content: prompt }],
   });
-  await recordCallCost(null, HAIKU_MODEL, response);
+  await recordCallCost(null, HAIKU_MODEL, response, "classify_audience");
 
   let text = "";
   for (const block of response.content) {

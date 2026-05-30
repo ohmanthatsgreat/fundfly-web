@@ -52,36 +52,68 @@ export async function POST(request: NextRequest) {
       `${user.firstName || ""} ${user.lastName || ""}`.trim() || undefined
     );
 
-    // Get or create Stripe customer
-    let stripeCustomerId = customer.stripeCustomerId;
-    if (!stripeCustomerId) {
+    // Create a fresh Stripe customer and persist its id against our row.
+    async function createAndPersistStripeCustomer(): Promise<string> {
       const stripeCustomer = await stripe.customers.create({
         email: customer.email,
         name: customer.name || undefined,
         metadata: { clerkUserId: userId },
       });
-      stripeCustomerId = stripeCustomer.id;
-
       const { db, customers: customersTable } = await import("@/lib/db");
       const { eq } = await import("drizzle-orm");
       await db
         .update(customersTable)
-        .set({ stripeCustomerId, updatedAt: new Date() })
+        .set({ stripeCustomerId: stripeCustomer.id, updatedAt: new Date() })
         .where(eq(customersTable.id, customer.id));
+      return stripeCustomer.id;
+    }
+
+    // Get or create Stripe customer
+    let stripeCustomerId = customer.stripeCustomerId;
+    if (!stripeCustomerId) {
+      stripeCustomerId = await createAndPersistStripeCustomer();
     }
 
     const baseUrl = getBaseUrl(request);
 
-    const session = await stripe.checkout.sessions.create({
-      customer: stripeCustomerId,
-      mode: "subscription",
+    const sessionParams = {
+      mode: "subscription" as const,
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${baseUrl}/app/settings?success=true`,
       cancel_url: `${baseUrl}/pricing`,
       allow_promotion_codes: true,
       metadata: { plan, customerId: String(customer.id) },
       ...(referral ? { client_reference_id: referral } : {}),
-    });
+    };
+
+    let session;
+    try {
+      session = await stripe.checkout.sessions.create({
+        customer: stripeCustomerId,
+        ...sessionParams,
+      });
+    } catch (err) {
+      // Self-heal stale customer ids. Accounts created during the test-key era
+      // hold a stripeCustomerId that only exists in Stripe *test* mode; under a
+      // live key Stripe rejects it with a `resource_missing` on `customer`
+      // ("No such customer"). Recreate the customer live, persist, and retry
+      // once so the user's checkout just works instead of hard-failing.
+      const isMissingCustomer =
+        typeof err === "object" &&
+        err !== null &&
+        (err as { code?: string }).code === "resource_missing" &&
+        (err as { param?: string }).param === "customer";
+      if (!isMissingCustomer) throw err;
+
+      console.warn(
+        `[checkout] Stale Stripe customer ${stripeCustomerId} for clerk ${userId} — recreating.`
+      );
+      stripeCustomerId = await createAndPersistStripeCustomer();
+      session = await stripe.checkout.sessions.create({
+        customer: stripeCustomerId,
+        ...sessionParams,
+      });
+    }
 
     return Response.json({ url: session.url });
   } catch (err) {

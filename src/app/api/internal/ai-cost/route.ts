@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
   // critical path — worker doesn't need to block on persistence.
   await recordCallCost(body.userId ?? null, body.model, {
     usage: body.usage as never,
-  });
+  }, "submission_agent");
 
   return Response.json({ success: true });
 }

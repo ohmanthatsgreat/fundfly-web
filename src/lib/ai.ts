@@ -9,6 +9,21 @@ function getClient(): Anthropic {
   return new Anthropic({ apiKey });
 }
 
+/**
+ * Model used for the AI matching scan (org + personal). Matching is a
+ * high-volume relevance-scoring task (up to ~25 calls per full scan), so it
+ * runs on Haiku 4.5 — ~3x cheaper in+out than Sonnet — rather than the
+ * Sonnet 4.6 used for user-facing long-form generation (drafts, sections).
+ * Scoring + short rationale is well within Haiku's ability; the expensive
+ * Sonnet calls stay on the application-writing paths where quality matters.
+ * NOTE: keep this string in sync with the pricing map in lib/ai-cost.ts so
+ * COGS is attributed correctly.
+ */
+const MATCH_MODEL = "claude-haiku-4-5-20251001";
+
+/** Output cap per matching batch. Trimmed rationale keeps batches well under this. */
+const MATCH_MAX_TOKENS = 3072;
+
 type ProfileLike = Record<string, unknown>;
 
 function buildOrgSummary(profile: ProfileLike): string {
@@ -128,10 +143,10 @@ export async function matchOpportunities(
     const batch = opportunities.slice(i, i + batchSize);
     const oppList = batch.map((o, idx) => `--- Opportunity ${idx + 1} ---\n${buildOpportunitySummary(o)}`).join("\n\n");
 
-    const model = "claude-sonnet-4-6";
+    const model = MATCH_MODEL;
     const response = await getClient().messages.create({
       model,
-      max_tokens: 4096,
+      max_tokens: MATCH_MAX_TOKENS,
       messages: [
         {
           role: "user",
@@ -146,14 +161,14 @@ ${oppList}
 For each opportunity, respond with a JSON array. Each element must have:
 - "opportunity_id": the ID from the opportunity
 - "score": relevance score from 0-100 (0 = not relevant, 100 = perfect match)
-- "summary": 1-2 sentence summary of what this opportunity funds
-- "match_reasoning": 2-3 sentences explaining why this is or isn't a good match for this organization
+- "summary": ONE concise sentence on what this opportunity funds
+- "match_reasoning": ONE sentence on why it does or doesn't fit this organization
 
-Only include opportunities with a score of 40 or higher. Respond with ONLY the JSON array, no other text.`,
+Be concise — single sentences only. Only include opportunities with a score of 40 or higher. Respond with ONLY the JSON array, no other text.`,
         },
       ],
     });
-    costCents += await recordCallCostSync(userId, model, response);
+    costCents += await recordCallCostSync(userId, model, response, "match_org");
 
     const text = response.content[0].type === "text" ? response.content[0].text : "";
     try {
@@ -188,10 +203,10 @@ export async function matchPersonalOpportunities(
     const batch = opportunities.slice(i, i + batchSize);
     const oppList = batch.map((o, idx) => `--- Opportunity ${idx + 1} ---\n${buildOpportunitySummary(o)}`).join("\n\n");
 
-    const model = "claude-sonnet-4-6";
+    const model = MATCH_MODEL;
     const response = await getClient().messages.create({
       model,
-      max_tokens: 4096,
+      max_tokens: MATCH_MAX_TOKENS,
       messages: [
         {
           role: "user",
@@ -215,14 +230,14 @@ ONLY score 40+ if the opportunity is genuinely available to individuals applying
 For each opportunity, respond with a JSON array. Each element must have:
 - "opportunity_id": the ID from the opportunity
 - "score": relevance score from 0-100 (0 = not relevant, 100 = perfect match)
-- "summary": 1-2 sentence summary of what this opportunity funds
-- "match_reasoning": 2-3 sentences explaining why this is or isn't a good match for this individual. If the opportunity is org-only, explicitly say so.
+- "summary": ONE concise sentence on what this opportunity funds
+- "match_reasoning": ONE sentence on why it does or doesn't fit this individual. If the opportunity is org-only, say so.
 
-Only include opportunities with a score of 40 or higher. Respond with ONLY the JSON array, no other text.`,
+Be concise — single sentences only. Only include opportunities with a score of 40 or higher. Respond with ONLY the JSON array, no other text.`,
         },
       ],
     });
-    costCents += await recordCallCostSync(userId, model, response);
+    costCents += await recordCallCostSync(userId, model, response, "match_personal");
 
     const text = response.content[0].type === "text" ? response.content[0].text : "";
     try {
@@ -336,7 +351,7 @@ Respond with ONLY the JSON array, no other text.`,
       },
     ],
   });
-  await recordCallCost(userId, model, response);
+  await recordCallCost(userId, model, response, "generate_application");
 
   let text = "";
   for (const block of response.content) {
@@ -404,7 +419,7 @@ ${voiceNote} Use markdown formatting. Return ONLY the section content, no other 
       },
     ],
   });
-  await recordCallCost(userId, model, response);
+  await recordCallCost(userId, model, response, "generate_section");
 
   let text = "";
   for (const block of response.content) {

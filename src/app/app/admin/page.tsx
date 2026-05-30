@@ -88,6 +88,27 @@ type AiCost = {
     costCents: number;
     calls: number;
   }[];
+  byFeature?: {
+    feature: string;
+    costCents: number;
+    calls: number;
+    inputTokens: number;
+    outputTokens: number;
+    avgCostCents: number;
+  }[];
+};
+
+const FEATURE_LABELS: Record<string, string> = {
+  enhance: "Profile Enhance",
+  match_org: "Matching (org)",
+  match_personal: "Matching (personal)",
+  generate_application: "Full App Generation",
+  generate_section: "Section Generation",
+  submission_plan: "Submission Plan",
+  submission_agent: "Submission Agent",
+  classify_audience: "Audience Classify",
+  blog: "Blog (system)",
+  other: "Other",
 };
 
 type SyncResult = {
@@ -781,6 +802,57 @@ export default function AdminPage() {
                     </span>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Cost by feature — true per-feature unit economics (gates pricing #3) */}
+          {aiCost.byFeature && aiCost.byFeature.length > 0 && (
+            <div className="mt-5">
+              <div className="text-xs text-muted font-medium mb-2">
+                Cost by feature (all time)
+              </div>
+              <div className="overflow-hidden rounded-lg border border-border">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-surface text-left text-muted">
+                      <th className="px-3 py-2 font-medium">Feature</th>
+                      <th className="px-3 py-2 font-medium text-right">Total</th>
+                      <th className="px-3 py-2 font-medium text-right">Calls</th>
+                      <th className="px-3 py-2 font-medium text-right">
+                        Avg/call
+                      </th>
+                      <th className="px-3 py-2 font-medium text-right">
+                        Tokens (in / out)
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aiCost.byFeature.map((f) => (
+                      <tr
+                        key={f.feature}
+                        className="border-t border-border"
+                      >
+                        <td className="px-3 py-2">
+                          {FEATURE_LABELS[f.feature] ?? f.feature}
+                        </td>
+                        <td className="px-3 py-2 text-right font-semibold tabular-nums">
+                          {fmtUsd(f.costCents)}
+                        </td>
+                        <td className="px-3 py-2 text-right text-muted tabular-nums">
+                          {f.calls.toLocaleString()}
+                        </td>
+                        <td className="px-3 py-2 text-right text-muted tabular-nums">
+                          {f.avgCostCents.toFixed(2)}¢
+                        </td>
+                        <td className="px-3 py-2 text-right text-muted tabular-nums">
+                          {f.inputTokens.toLocaleString()} /{" "}
+                          {f.outputTokens.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}

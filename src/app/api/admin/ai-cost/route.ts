@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
-import { db, aiUsage, customers } from "@/lib/db";
+import { db, aiUsage, aiUsageEvents, customers } from "@/lib/db";
 import { sql, gte, and, ne, inArray, desc } from "drizzle-orm";
 
 const ADMIN_USER_IDS = (process.env.ADMIN_USER_IDS || "")
@@ -79,10 +79,31 @@ export async function GET() {
     calls: r.calls,
   }));
 
+  // Per-feature lifetime breakdown from the append-only event log — the REAL
+  // unit cost + token volume of each product feature. This is the data that
+  // gates the prepaid-credits pricing redesign (backlog #3).
+  const featureExpr = sql<number>`coalesce(sum(${aiUsageEvents.costCents}), 0)::int`;
+  const byFeatureRows = await db
+    .select({
+      feature: aiUsageEvents.feature,
+      costCents: featureExpr,
+      calls: sql<number>`count(*)::int`,
+      inputTokens: sql<number>`coalesce(sum(${aiUsageEvents.inputTokens}), 0)::int`,
+      outputTokens: sql<number>`coalesce(sum(${aiUsageEvents.outputTokens}), 0)::int`,
+    })
+    .from(aiUsageEvents)
+    .groupBy(aiUsageEvents.feature)
+    .orderBy(desc(featureExpr));
+  const byFeature = byFeatureRows.map((f) => ({
+    ...f,
+    avgCostCents: f.calls > 0 ? f.costCents / f.calls : 0,
+  }));
+
   return Response.json({
     last30,
     allTime,
     systemCents: system30?.costCents ?? 0,
     topUsers,
+    byFeature,
   });
 }
