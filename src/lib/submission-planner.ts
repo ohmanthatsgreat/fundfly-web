@@ -169,7 +169,7 @@ Return ONLY the JSON object.`,
       },
     ],
   });
-  await recordCallCost(userId, model, response);
+  await recordCallCost(userId, model, response, "submission_plan");
 
   let text = "";
   for (const block of response.content) {

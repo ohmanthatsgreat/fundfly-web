@@ -244,7 +244,7 @@ Respond with ONLY the JSON object, no other text.`,
       },
     ],
   });
-  await recordCallCost(null, model, response);
+  await recordCallCost(null, model, response, "blog");
 
   let text = "";
   for (const block of response.content) {

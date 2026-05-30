@@ -388,6 +388,35 @@ export const aiCredits = pgTable(
   (t) => [index("idx_ai_credits_user").on(t.userId)]
 );
 
+/**
+ * Append-only per-call AI usage log. Unlike `ai_usage` (which is a per-period
+ * aggregate used for the cap meter), this records one row per Claude API call
+ * with the feature that triggered it and the raw token counts — so we can see
+ * the REAL unit cost of each feature (enhance, matching, generation, etc.)
+ * before designing the credits pricing model. `userId` is the Clerk id, or
+ * "__system__" for system-level calls (cron blog, audience classification).
+ */
+export const aiUsageEvents = pgTable(
+  "ai_usage_events",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    feature: text("feature").notNull(), // see AiFeature in lib/ai-cost.ts
+    model: text("model").notNull(),
+    costCents: integer("cost_cents").default(0).notNull(),
+    inputTokens: integer("input_tokens").default(0).notNull(),
+    outputTokens: integer("output_tokens").default(0).notNull(),
+    cacheReadTokens: integer("cache_read_tokens").default(0).notNull(),
+    cacheWriteTokens: integer("cache_write_tokens").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_ai_events_user").on(t.userId),
+    index("idx_ai_events_feature").on(t.feature),
+    index("idx_ai_events_created").on(t.createdAt),
+  ]
+);
+
 // ─── Blog Posts ───────────────────────────────────────────────────
 
 export const blogPosts = pgTable(
