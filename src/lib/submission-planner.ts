@@ -127,7 +127,7 @@ ${oppParts}
 Based on the opportunity type, agency, and source portal, create a complete submission plan. Consider:
 
 1. **Submission method**: First, determine how the application is delivered. Most federal opportunities go through Grants.gov/NSPIRES/eRA Commons portals. However, some foundation grants, NIH program announcements, and smaller agency grants require **email submission** to a program officer, or even physical **mail**. Read the description carefully for phrases like "email completed application to," "send to mailing address," "submit via email," "PDF attachment to," or for explicit recipient email/postal addresses. Pick ONE primary method: "portal", "email", "mail", or "mixed" (if there's both online registration AND email/mail components).
-2. **Portal-specific requirements**: Different agencies use different portals (Grants.gov, NSPIRES, eRA Commons, DSIP, etc.)
+2. **Portal-specific requirements**: Different agencies use different portals (Grants.gov, NSPIRES, eRA Commons, DSIP, etc.). IMPORTANT: Grants.gov has migrated opportunity search and viewing to the NEW system at simpler.grants.gov. For any Grants.gov opportunity, use https://simpler.grants.gov/opportunity/<id> to view/find the opportunity (the legacy grants.gov/search-results-detail URLs are deprecated). Workspace/application submission may still occur via the Grants.gov Workspace, but the opportunity itself lives on simpler.grants.gov.
 3. **Prerequisites**: SAM.gov registration, Grants.gov registration, agency-specific accounts, CCR reports
 4. **Artifacts that flow between portals**: Report IDs, confirmation numbers, registration certificates
 5. **Order of operations**: Which steps must complete before others can begin
@@ -182,6 +182,41 @@ Return ONLY the JSON object.`,
     throw new Error(
       "The AI returned an incomplete plan. Please try generating it again."
     );
+  }
+  return rewriteLegacyGrantsGovUrls(plan, opportunity);
+}
+
+/**
+ * Safety net: rewrite legacy grants.gov opportunity URLs in the plan to the
+ * new simpler.grants.gov system. Grants.gov migrated opportunity viewing
+ * there, so the old `grants.gov/search-results-detail/...` links 404.
+ */
+function rewriteLegacyGrantsGovUrls(
+  plan: SubmissionPlan,
+  opportunity: OppLike
+): SubmissionPlan {
+  // Derive the numeric opportunity id (our ids look like "grants_gov_358289").
+  const idMatch = opportunity.id.match(/(\d{4,})/);
+  const simplerUrl = idMatch
+    ? `https://simpler.grants.gov/opportunity/${idMatch[1]}`
+    : "https://simpler.grants.gov/";
+
+  const fix = (url: string): string => {
+    if (!url) return url;
+    // Legacy grants.gov opportunity/search pages → simpler.grants.gov.
+    if (
+      /grants\.gov\/(search-results-detail|web\/grants\/search|search-grants)/i.test(
+        url
+      ) ||
+      /^https?:\/\/(www\.)?grants\.gov\/?$/i.test(url)
+    ) {
+      return simplerUrl;
+    }
+    return url;
+  };
+
+  for (const step of plan.steps) {
+    if (step.portal_url) step.portal_url = fix(step.portal_url);
   }
   return plan;
 }

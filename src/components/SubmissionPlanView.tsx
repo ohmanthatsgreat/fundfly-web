@@ -905,6 +905,42 @@ export default function SubmissionPlanView({
         isOnlineSubmission={isOnlineSubmission}
       />
 
+      {/* DO THIS FIRST — generate application content. Surfaced right under the
+          stepper so it's the obvious next action before anything else. */}
+      {!hasSections && !isRunning && !isComplete && (
+        <div className="bg-gradient-to-br from-accent/10 to-purple-500/5 border-2 border-accent/30 rounded-xl p-5 space-y-3 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-accent text-white">
+              Do this first
+            </span>
+            <h4 className="text-sm font-semibold">
+              Generate your application content
+            </h4>
+          </div>
+          <p className="text-sm text-foreground/70">
+            Start here — generate your application content before auto-submission.
+            The agent uses these sections to fill out portal forms. (You can
+            still edit everything in the workspace afterward.)
+          </p>
+          <button
+            onClick={onGenerateSections}
+            disabled={generatingSections}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-accent to-purple-500 text-white text-sm font-semibold rounded-lg shadow-sm hover:shadow-md hover:brightness-105 transition-all duration-150 disabled:opacity-50"
+          >
+            {generatingSections ? (
+              <>
+                <Loader2 size={14} className="animate-spin" /> Generating
+                sections…
+              </>
+            ) : (
+              <>
+                <Sparkles size={14} /> Generate Application with AI
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* Plan summary */}
       <div className="bg-card border border-border rounded-xl p-5 space-y-4">
         <div className="flex items-center justify-between">
@@ -956,39 +992,6 @@ export default function SubmissionPlanView({
           ...discoveries.map((d) => d.source_portal),
         ]}
       />
-
-      {/* Prompt to generate sections if missing */}
-      {!hasSections && !isRunning && !isComplete && (
-        <div className="bg-accent/5 border border-accent/20 rounded-xl p-5 space-y-3">
-          <div className="flex items-center gap-2">
-            <Sparkles size={18} className="text-accent" />
-            <h4 className="text-sm font-semibold">
-              Generate Application Content
-            </h4>
-          </div>
-          <p className="text-sm text-foreground/60">
-            Before auto-submission begins, generate your application content.
-            The agent will use these sections to fill out portal forms during
-            submission.
-          </p>
-          <button
-            onClick={onGenerateSections}
-            disabled={generatingSections}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent to-purple-500 text-white text-sm font-medium rounded-lg hover:opacity-90 transition-all duration-150 disabled:opacity-50"
-          >
-            {generatingSections ? (
-              <>
-                <Loader2 size={14} className="animate-spin" /> Generating
-                sections...
-              </>
-            ) : (
-              <>
-                <Sparkles size={14} /> Generate Application with AI
-              </>
-            )}
-          </button>
-        </div>
-      )}
 
       {hasSections && canStartAgent && (
         <div className="bg-emerald-50 border border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/20 rounded-xl px-4 py-4">
