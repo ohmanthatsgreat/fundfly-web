@@ -112,7 +112,7 @@ export async function researchSubmissionPlan(
   const model = "claude-sonnet-4-6";
   const response = await getClient().messages.create({
     model,
-    max_tokens: 6000,
+    max_tokens: 16000,
     messages: [
       {
         role: "user",
@@ -176,7 +176,171 @@ Return ONLY the JSON object.`,
     if (block.type === "text") text += block.text;
   }
 
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("Failed to generate submission plan");
-  return JSON.parse(jsonMatch[0]) as SubmissionPlan;
+  const truncated = response.stop_reason === "max_tokens";
+  const plan = parsePlanJson(text, truncated);
+  if (!plan) {
+    throw new Error(
+      "The AI returned an incomplete plan. Please try generating it again."
+    );
+  }
+  return plan;
+}
+
+/**
+ * Extract and parse the plan JSON from the model's text output.
+ *
+ * The model occasionally returns JSON that is truncated (hit max_tokens) or
+ * wrapped in prose/markdown fences. We:
+ *   1. Slice from the first `{` to the last `}`.
+ *   2. Try a direct parse.
+ *   3. On failure, attempt to repair a truncated object by trimming the
+ *      partial trailing element and closing any open brackets — salvaging
+ *      all fully-formed steps instead of throwing.
+ *
+ * Returns null only if nothing usable could be recovered.
+ */
+function parsePlanJson(
+  text: string,
+  truncated: boolean
+): SubmissionPlan | null {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) return null;
+
+  const raw = text.slice(start, end + 1);
+
+  // Direct parse first (the happy path).
+  try {
+    return normalizePlan(JSON.parse(raw));
+  } catch {
+    // fall through to repair
+  }
+
+  if (truncated) {
+    console.warn(
+      "[submission-planner] Response hit max_tokens; attempting JSON repair."
+    );
+  }
+
+  // Repair: the full text (not the lastIndexOf-trimmed slice) is more
+  // faithful when truncated, since the final `}` may be a nested object.
+  const repaired = repairTruncatedJson(text.slice(start));
+  if (!repaired) return null;
+  try {
+    return normalizePlan(JSON.parse(repaired));
+  } catch (err) {
+    console.error("[submission-planner] Repair parse failed:", err);
+    return null;
+  }
+}
+
+/**
+ * Ensure a parsed (possibly salvaged) plan has the required array/string
+ * fields so downstream UI never crashes on a missing property. Returns null
+ * if the object has no usable steps.
+ */
+function normalizePlan(obj: unknown): SubmissionPlan | null {
+  if (!obj || typeof obj !== "object") return null;
+  const p = obj as Partial<SubmissionPlan>;
+  if (!Array.isArray(p.steps)) return null;
+
+  // Drop any partial steps a truncation-repair may have left behind — a real
+  // step must at least have an action and a description.
+  const steps = p.steps.filter(
+    (s) =>
+      s &&
+      typeof s === "object" &&
+      typeof s.action === "string" &&
+      s.action.trim().length > 0 &&
+      typeof s.description === "string"
+  );
+  if (steps.length === 0) return null;
+
+  return {
+    opportunity_id: p.opportunity_id ?? "",
+    opportunity_title: p.opportunity_title ?? "",
+    total_steps: steps.length,
+    estimated_total_time: p.estimated_total_time ?? "",
+    portals_involved: Array.isArray(p.portals_involved)
+      ? p.portals_involved
+      : [],
+    prerequisites_summary: p.prerequisites_summary ?? "",
+    submission_method: p.submission_method ?? "portal",
+    submission_email: p.submission_email ?? null,
+    submission_mailing_address: p.submission_mailing_address ?? null,
+    submission_notes: p.submission_notes ?? null,
+    steps,
+    warnings: Array.isArray(p.warnings) ? p.warnings : [],
+  };
+}
+
+/**
+ * Best-effort repair of a truncated JSON object: cut back to the last fully
+ * closed value, drop any dangling comma, and append the brackets needed to
+ * balance every still-open `{`/`[`. String-aware so braces inside string
+ * literals are ignored.
+ */
+function repairTruncatedJson(s: string): string | null {
+  // Walk once to find the index of the last fully-closed value (a `}` or `]`
+  // at depth >= 1) so we can discard a partial trailing element.
+  let inStr = false;
+  let esc = false;
+  let depth = 0;
+  let lastCompleteIdx = -1;
+
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (esc) {
+      esc = false;
+      continue;
+    }
+    if (c === "\\") {
+      esc = true;
+      continue;
+    }
+    if (c === '"') {
+      inStr = !inStr;
+      continue;
+    }
+    if (inStr) continue;
+
+    if (c === "{" || c === "[") {
+      depth++;
+    } else if (c === "}" || c === "]") {
+      depth--;
+      if (depth >= 1) lastCompleteIdx = i;
+    }
+  }
+
+  if (lastCompleteIdx === -1) return null;
+
+  // Cut to the last complete nested value, then drop a trailing comma.
+  let cut = s.slice(0, lastCompleteIdx + 1).replace(/,\s*$/, "");
+
+  // Recompute open brackets on the cut string and close them in reverse.
+  inStr = false;
+  esc = false;
+  const closers: string[] = [];
+  for (let i = 0; i < cut.length; i++) {
+    const c = cut[i];
+    if (esc) {
+      esc = false;
+      continue;
+    }
+    if (c === "\\") {
+      esc = true;
+      continue;
+    }
+    if (c === '"') {
+      inStr = !inStr;
+      continue;
+    }
+    if (inStr) continue;
+    if (c === "{") closers.push("}");
+    else if (c === "[") closers.push("]");
+    else if (c === "}" || c === "]") closers.pop();
+  }
+
+  while (closers.length) cut += closers.pop();
+  return cut;
 }

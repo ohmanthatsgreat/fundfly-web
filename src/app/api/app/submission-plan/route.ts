@@ -143,9 +143,16 @@ export async function POST(request: NextRequest) {
       plan_id: inserted.id,
     });
   } catch (err) {
-    const msg =
-      err instanceof Error ? err.message : "Plan generation failed";
-    return Response.json({ error: msg }, { status: 500 });
+    // Log the real error for debugging, but return a clean, user-friendly
+    // message — never surface raw JSON parser/internal errors to the UI.
+    console.error("[submission-plan] Generation failed:", err);
+    return Response.json(
+      {
+        error:
+          "We couldn't build the submission plan this time. Please try again in a moment.",
+      },
+      { status: 500 }
+    );
   }
 }
 

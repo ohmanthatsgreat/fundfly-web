@@ -119,6 +119,7 @@ export default function SubmissionPlanView({
   const [planId, setPlanId] = useState<number | null>(null);
   const [planStatus, setPlanStatus] = useState<string>("none");
   const [generating, setGenerating] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
   const [stepStatuses, setStepStatuses] = useState<
     Record<number, StepStatus>
   >({});
@@ -262,6 +263,7 @@ export default function SubmissionPlanView({
 
   const handleGeneratePlan = async () => {
     setGenerating(true);
+    setPlanError(null);
     try {
       const res = await fetch("/api/app/submission-plan", {
         method: "POST",
@@ -274,14 +276,16 @@ export default function SubmissionPlanView({
         setGenerating(false);
         return;
       } else if (data.error) {
-        alert(data.error);
+        setPlanError(data.error);
       } else {
         setPlanData(data.plan);
         setPlanId(data.plan_id);
         setPlanStatus("pending");
       }
     } catch {
-      alert("Failed to generate plan.");
+      setPlanError(
+        "We couldn't build the submission plan this time. Please try again in a moment."
+      );
     }
     setGenerating(false);
   };
@@ -545,8 +549,14 @@ export default function SubmissionPlanView({
             className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-accent to-purple-500 text-white text-sm font-medium rounded-lg hover:opacity-90 transition-all duration-150 disabled:opacity-50"
           >
             <Sparkles size={16} />
-            Create Pre-Submission Checklist
+            {planError ? "Try Again" : "Create Pre-Submission Checklist"}
           </button>
+          {planError && (
+            <div className="mt-4 max-w-md flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300 bg-amber-50 border border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/20 rounded-lg px-3 py-2.5">
+              <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+              <span>{planError}</span>
+            </div>
+          )}
         </div>
         {showUpgrade && (
           <UpgradeModal
