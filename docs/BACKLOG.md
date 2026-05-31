@@ -1,6 +1,6 @@
 # FundFly — Working Backlog
 
-_Last updated: 2026-05-30 (AI cost audit #2 — shipped to prod & deployed)._
+_Last updated: 2026-05-31 (prepaid-credits core #3, full-feature trial #4, UX batch #5/#7/#8 — shipped & deployed)._
 
 **Working method (context-safety):** tackle ONE item — or one batched group — per
 **fresh** session. Start each session by reading this file plus only the files named
@@ -117,33 +117,38 @@ context small so we don't get cut off mid-task.
    changes the JSON-type contract downstream code depends on — validate parse
    output, don't trust the model to emit a given type.
 
-## P1 — monetization redesign (depends on #2)
-3. **Prepaid credits model.** Replace/augment flat subscription with AI credits:
-   - User sees a credit balance = plan price ($29 / $129 / $399 display value).
-   - Internal **actual-cost cap = 50% of display** (2× markup): $129 → $64.50 real
-     cost; $399 → $199.50.
-   - Track real spend against the cap; prompt to buy more when exhausted, else wait
-     for monthly renewal.
-   - Auto-adjust as model prices change while preserving the markup (user-facing
-     value stays = plan price; internal accounting measures real $).
-   - Needs: cost telemetry (#2), markup config, dashboard credit display, top-up
-     purchase flow. Worth a product-spec + financial-modeling pass.
+## P1 — monetization redesign
+3. **Prepaid credits model.** ✅ CORE SHIPPED (2026-05-31). `auth.ts` now uses a
+   unified per-plan cap = 50% of display price (`AI_MARKUP=2`,
+   `PLAN_DISPLAY_PRICE_CENTS`, `planCapCents()`): matching $14.50 / checklist
+   $64.50 / auto_submission $199.50. ONE cap covers all AI features; credits
+   (`aiCredits.balanceCents`, stored as REAL headroom) extend it; `getUsageInfo`
+   gates at `cost ≥ cap + credits`. `ai-usage` route + Settings panel show
+   display-dollar credit (`toDisplayCents` = 2×), "AI Credit This Period" meter,
+   at-limit banner with renewal date + "buy more or wait" wording.
+   **⏳ Remaining = Stripe top-up purchase flow** (the only deferred piece): a
+   Stripe product/price for credit packs + checkout + webhook that adds the
+   REAL amount (50% of purchase) to `aiCredits.balanceCents`. Wire the
+   "Get more AI credit" CTA (Settings) to it. The accounting/gating/display
+   are all live and already credit-aware — only the payment path is missing.
+   Note: `AI_MARKUP` is one constant — raise it if affiliate cuts squeeze margin.
 
-4. **Free trial covers ALL AI features**, not just AI Matching. Extend the 3-day
-   no-card trial to checklist, generation, submission, etc. Files:
-   `/api/app/trial/start`, the feature-gating checks, UpgradeModal copy.
+4. **Free trial covers ALL AI features.** ✅ DONE (2026-05-31). `trial/start`
+   now grants the top tier (auto_submission) so PLAN_FEATURES unlocks
+   everything; abuse bounded by `TRIAL_CAP_CENTS=$7.50` real (≈$15 display) via
+   `isTrialOnly()`/`baseCapForEntries()`. UpgradeModal copy updated.
 
-## P2 — UX fixes (batchable in one session)
-5. **Guided tour backdrop too dark** — highlighted target is hard to see against the
-   overlay. Lighten overlay / sharpen the spotlight cutout. File: TourProvider.
-6. **Similar opportunities not clickable** — in the expanded opportunity detail, the
-   listed "similar opportunities" don't respond to clicks. Wire the onSelect.
-   Files: OpportunityDetail / OpportunityCard.
-7. **"Account" text should link to the account page**, not just the avatar circle.
-   Files: AppSidebar / header. (Account page is Clerk-hosted — confirm the route.)
-8. **More upgrade entry points** — add upgrade CTAs on the Settings page, the account
-   area, and more on the dashboard. (Clerk-hosted account page likely needs a custom
-   link out to `/pricing`.)
+## P2 — UX fixes
+5. **Guided tour backdrop too dark.** ✅ DONE (2026-05-31). Was double-dimming:
+   a full bg-black/60 layer stacked on the spotlight ring. Now spotlight steps
+   drop the full overlay (ring dims to 0.48, accent ring on cutout, target
+   fully bright); non-spotlight steps use a single bg-black/50.
+6. **Similar opportunities not clickable.** ✅ DONE (earlier — `onSelectSimilar`).
+7. **"Account" text links to the account page.** ✅ DONE (2026-05-31).
+   Sidebar "Account" now calls Clerk `openUserProfile()`.
+8. **More upgrade entry points.** ✅ PARTIAL (2026-05-31). Added upgrade/top-up
+   CTA to the Settings AI-credit panel (gradient when at cap). Still could add
+   one on the dashboard for free/trial users.
 
 ## P3 — matching quality / admin
 9. **Personal-grant matching completeness** — ensure ALL personal-profile fields are
