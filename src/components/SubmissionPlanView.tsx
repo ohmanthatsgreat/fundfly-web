@@ -89,6 +89,9 @@ type AgentEvent = {
   error?: string;
   artifacts?: Record<string, string>;
   requirements?: DiscoveredRequirement[];
+  /** base64 JPEG of the page the agent currently sees (screenshot events). */
+  data?: string;
+  step_number?: number;
 };
 
 type StepAttachment = {
@@ -145,6 +148,9 @@ export default function SubmissionPlanView({
   const [stepAttachments, setStepAttachments] = useState<StepAttachment[]>([]);
   const [uploadingFor, setUploadingFor] = useState<{ step: number; artifact: string } | null>(null);
   const [stepsReady, setStepsReady] = useState<Record<number, boolean>>({});
+  // Live agent view: most recent screenshot + which step it belongs to.
+  const [liveScreenshot, setLiveScreenshot] = useState<string | null>(null);
+  const [liveStep, setLiveStep] = useState<number | null>(null);
 
   const fetchPlan = useCallback(async () => {
     try {
@@ -298,6 +304,8 @@ export default function SubmissionPlanView({
     setAgentLogs([]);
     setWaitingInfo(null);
     setDiscoveries([]);
+    setLiveScreenshot(null);
+    setLiveStep(null);
 
     // Start the agent via our proxy
     const startRes = await fetch("/api/app/submission-agent", {
@@ -331,6 +339,15 @@ export default function SubmissionPlanView({
               ...prev,
               [data.progress!.step_number]: data.progress!.message,
             }));
+            setLiveStep(data.progress.step_number);
+          }
+          break;
+        case "screenshot":
+          if (data.data) {
+            setLiveScreenshot(data.data);
+            if (typeof data.step_number === "number") {
+              setLiveStep(data.step_number);
+            }
           }
           break;
         case "step_complete":
@@ -829,13 +846,89 @@ export default function SubmissionPlanView({
         </div>
       )}
 
-      {/* Waiting for user action */}
-      {waitingInfo && (
-        <WaitingBlock
-          waitingInfo={waitingInfo}
-          onResume={handleResume}
-          onCancel={handleCancel}
-        />
+      {/* Live agent activity — what the agent sees + where it needs you */}
+      {(isRunning || waitingInfo) && (
+        <div className="bg-card border-2 border-accent/30 rounded-xl overflow-hidden shadow-sm">
+          <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-accent/5">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span
+                  className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                    waitingInfo
+                      ? "bg-amber-400 animate-ping"
+                      : "bg-emerald-400 animate-ping"
+                  }`}
+                />
+                <span
+                  className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                    waitingInfo ? "bg-amber-500" : "bg-emerald-500"
+                  }`}
+                />
+              </span>
+              <h4 className="text-sm font-semibold">
+                {waitingInfo ? "Agent needs you" : "Agent working…"}
+              </h4>
+            </div>
+            {liveStep !== null && (
+              <button
+                onClick={() => {
+                  toggleStep(liveStep);
+                  document
+                    .getElementById(`step-${liveStep}`)
+                    ?.scrollIntoView({ behavior: "smooth", block: "center" });
+                }}
+                className="text-xs text-accent hover:underline"
+              >
+                Jump to Step {liveStep} →
+              </button>
+            )}
+          </div>
+
+          {/* Latest screenshot — what the headless browser currently sees */}
+          {liveScreenshot ? (
+            <div className="relative bg-black/5 dark:bg-black/20">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`data:image/jpeg;base64,${liveScreenshot}`}
+                alt="What the agent currently sees"
+                className="w-full max-h-[420px] object-contain"
+              />
+              <span className="absolute bottom-2 right-2 text-[10px] font-medium px-2 py-1 rounded bg-black/60 text-white">
+                Live view{liveStep !== null ? ` · Step ${liveStep}` : ""}
+              </span>
+            </div>
+          ) : (
+            <div className="px-4 py-8 flex flex-col items-center justify-center text-center text-muted">
+              <Loader2 size={22} className="animate-spin mb-2 text-accent" />
+              <p className="text-xs">
+                Starting the browser… the agent runs on our servers, so
+                there&apos;s no window to watch — its view will appear here.
+              </p>
+            </div>
+          )}
+
+          {/* Current activity line */}
+          {!waitingInfo && isRunning && agentLogs.length > 0 && (
+            <div className="px-4 py-2.5 border-t border-border flex items-center gap-2 text-xs text-foreground/70">
+              <Loader2 size={12} className="animate-spin text-accent shrink-0" />
+              <span className="truncate">
+                {agentLogs[agentLogs.length - 1]}
+              </span>
+            </div>
+          )}
+
+          {/* The pause/interaction prompt lives right here so the user never
+              has to hunt for where to respond (credentials, MFA, approval). */}
+          {waitingInfo && (
+            <div className="p-4 border-t border-border">
+              <WaitingBlock
+                waitingInfo={waitingInfo}
+                onResume={handleResume}
+                onCancel={handleCancel}
+              />
+            </div>
+          )}
+        </div>
       )}
 
       {/* Discovered requirements */}
@@ -927,8 +1020,13 @@ export default function SubmissionPlanView({
           return (
             <div
               key={step.step_number}
-              className={`bg-card border rounded-xl overflow-hidden hover:border-accent/15 transition-all duration-200 ${
-                isReady ? "border-emerald-200 dark:border-emerald-500/20" : "border-border"
+              id={`step-${step.step_number}`}
+              className={`bg-card border rounded-xl overflow-hidden hover:border-accent/15 transition-all duration-200 scroll-mt-4 ${
+                liveStep === step.step_number && (isRunning || waitingInfo)
+                  ? "border-accent/50 ring-1 ring-accent/20"
+                  : isReady
+                    ? "border-emerald-200 dark:border-emerald-500/20"
+                    : "border-border"
               }`}
             >
               <div
