@@ -18,6 +18,10 @@ type AiUsage = {
   percentUsed: number;
   atWarning: boolean;
   atLimit: boolean;
+  // User-facing credit values (display dollars = what they paid)
+  displayTotalCents: number | null;
+  displayUsedCents: number | null;
+  displayRemainingCents: number | null;
   periodStart: string;
   periodEnd: string | null;
 };
@@ -158,14 +162,15 @@ export default function SettingsPage() {
         <div className="bg-card border border-border rounded-xl p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">
             <Zap className="w-5 h-5 text-accent" />
-            <h2 className="font-semibold">AI Usage This Period</h2>
+            <h2 className="font-semibold">AI Credit This Period</h2>
           </div>
 
-          {/* Progress bar */}
+          {/* Progress bar — shown in display-dollar credit (what you paid) */}
           <div className="mb-4">
             <div className="flex items-center justify-between text-sm mb-1.5">
               <span className="text-muted">
-                {fmtUsd(usage.costCents)} of {fmtUsd(usage.capCents)} used
+                {fmtUsd(usage.displayUsedCents ?? usage.costCents)} of{" "}
+                {fmtUsd(usage.displayTotalCents ?? usage.capCents)} credit used
               </span>
               <span
                 className={`font-medium ${
@@ -193,29 +198,35 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Stats grid */}
+          {/* Stats grid — display-dollar credit values */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm mb-4">
+            <div>
+              <div className="text-xs text-muted uppercase tracking-wider mb-1">
+                Credit Remaining
+              </div>
+              <div className="font-medium">
+                {fmtUsd(usage.displayRemainingCents ?? 0)}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-muted uppercase tracking-wider mb-1">
+                Monthly Credit
+              </div>
+              <div className="font-medium">
+                {fmtUsd(usage.displayTotalCents ?? usage.capCents)}
+              </div>
+            </div>
             <div>
               <div className="text-xs text-muted uppercase tracking-wider mb-1">
                 Used
               </div>
-              <div className="font-medium">{fmtUsd(usage.costCents)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-muted uppercase tracking-wider mb-1">
-                Monthly Cap
+              <div className="font-medium">
+                {fmtUsd(usage.displayUsedCents ?? usage.costCents)}
               </div>
-              <div className="font-medium">{fmtUsd(usage.capCents)}</div>
             </div>
             <div>
               <div className="text-xs text-muted uppercase tracking-wider mb-1">
-                Extra Credits
-              </div>
-              <div className="font-medium">{fmtUsd(usage.creditsCents)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-muted uppercase tracking-wider mb-1">
-                AI Calls
+                AI Actions
               </div>
               <div className="font-medium">{usage.requestCount}</div>
             </div>
@@ -244,11 +255,20 @@ export default function SettingsPage() {
               />
               <div>
                 <p className="font-medium text-red-900 dark:text-red-200">
-                  AI cap reached
+                  Monthly AI credit used up
                 </p>
                 <p className="text-red-900/80 dark:text-red-200/80 text-xs mt-0.5">
-                  AI features are paused for the rest of this billing period.
-                  Purchase additional credits to continue.
+                  You&apos;ve used all your AI credit for this period. AI
+                  features are paused — buy more credit to keep going
+                  {usage.periodEnd
+                    ? `, or wait until it renews on ${new Date(
+                        usage.periodEnd
+                      ).toLocaleDateString("en-US", {
+                        month: "long",
+                        day: "numeric",
+                      })}`
+                    : " until it renews"}
+                  .
                 </p>
               </div>
             </div>

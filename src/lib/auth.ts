@@ -21,20 +21,42 @@ const PLAN_FEATURES: Record<Plan, Feature[]> = {
 };
 
 /**
- * Auto-submission monthly AI cost cap in cents.
- * $100 = 10000 cents. Lowered from $150 on 2026-05-24 to leave headroom
- * for affiliate commissions on the lower $399 tier.
+ * PREPAID-CREDITS MODEL (2026-05-31).
+ *
+ * Each plan grants a monthly pool of AI "credit" equal to its display price.
+ * Internally we only spend up to HALF of that (a 2× markup), so we can never
+ * lose money: the user-facing credit value is `display price`, our real
+ * AI-cost cap is `display price / AI_MARKUP`. One unified cap covers ALL AI
+ * features included in the plan. Top-ups (aiCredits.balanceCents, stored as
+ * REAL headroom) extend the cap. When real spend hits the cap, every AI
+ * feature is gated until renewal or a top-up.
  */
-const AUTO_SUB_CAP_CENTS = 10000;
+const AI_MARKUP = 2; // user-facing credit = AI_MARKUP × our real cost cap
 
-/**
- * Matching-tier monthly AI cost cap in cents. $15 = 1500 cents.
- * Applies only to entry "matching" plan (and active no-card trials of it) so a
- * single power-user can't run the $29 tier into a loss by scanning the full
- * ~67k-opportunity pool. Higher tiers (checklist / auto_submission / bundle)
- * pay more and are not capped on matching.
- */
-const MATCHING_CAP_CENTS = 1500;
+/** Monthly display price (what the user "gets" in credit) per plan, in cents. */
+const PLAN_DISPLAY_PRICE_CENTS: Record<string, number> = {
+  matching: 2900, // $29
+  checklist: 12900, // $129
+  auto_submission: 39900, // $399
+  bundle: 39900,
+};
+
+/** Our real monthly AI-cost cap for a plan = display / markup (50% of price). */
+function planCapCents(plan: string): number {
+  const display = PLAN_DISPLAY_PRICE_CENTS[plan] ?? 0;
+  return Math.round(display / AI_MARKUP);
+}
+
+/** The base cap for a user = the cap of their highest active plan. */
+function topPlanCapCents(plans: { plan: string }[]): number {
+  return plans.reduce((max, p) => Math.max(max, planCapCents(p.plan)), 0);
+}
+
+/** Display-credit helpers for the usage meter (user sees 2× our real numbers). */
+export function toDisplayCents(realCents: number): number {
+  return realCents * AI_MARKUP;
+}
+export { PLAN_DISPLAY_PRICE_CENTS };
 
 export async function requireAuth() {
   const { userId } = await auth();
@@ -102,14 +124,11 @@ async function getActivePlanEntries(
 }
 
 /**
- * The effective monthly AI-cost cap (in cents) for a user, mirroring the
- * precedence in checkSubscription so the usage meter shows the right number:
- *   - admin bypass                          → null (uncapped)
- *   - auto_submission / bundle              → AUTO_SUB_CAP_CENTS ($100)
- *   - checklist (matching uncapped, no auto)→ null (uncapped)
- *   - matching only (incl. no-card trial)   → MATCHING_CAP_CENTS ($15)
- *   - no active plan                        → null
- * Returns null when there is no enforced cap.
+ * The effective monthly AI-cost cap (REAL cents) for a user — the highest
+ * active plan's cap (50% of its display price) plus any purchased credits.
+ *   - admin bypass → null (uncapped)
+ *   - no active plan → null
+ * The usage meter multiplies this by AI_MARKUP for the user-facing credit value.
  */
 export async function getEffectiveAiCapCents(
   userId: string
@@ -126,14 +145,14 @@ export async function getEffectiveAiCapCents(
   const entries = await getActivePlanEntries(userId);
   if (entries.length === 0) return null;
 
-  const plans = entries.map((e) => e.plan);
-  if (plans.includes("auto_submission") || plans.includes("bundle")) {
-    return AUTO_SUB_CAP_CENTS;
-  }
-  // checklist grants uncapped matching and no auto-submission cap.
-  if (plans.includes("checklist")) return null;
-  // matching-only entry tier (or an active no-card trial of it).
-  return MATCHING_CAP_CENTS;
+  // Unified cap = highest active plan's cap + any purchased credit headroom.
+  const base = topPlanCapCents(entries);
+  const credits = await db
+    .select({ balanceCents: aiCredits.balanceCents })
+    .from(aiCredits)
+    .where(eq(aiCredits.userId, userId))
+    .limit(1);
+  return base + (credits[0]?.balanceCents ?? 0);
 }
 
 export async function getOrCreateCustomer(userId: string, email: string, name?: string) {
@@ -208,33 +227,16 @@ export async function checkSubscription(
   );
   const periodStart = computePeriodStart(topEntry.periodEnd);
 
-  // For auto_submission, enforce its monthly AI-cost cap.
-  if (feature === "auto_submission") {
-    const usageInfo = await getUsageInfo(userId, periodStart, AUTO_SUB_CAP_CENTS);
-    return {
-      allowed: !usageInfo.atLimit,
-      plan: topEntry.plan,
-      usage: usageInfo,
-    };
-  }
-
-  // For matching, enforce a cost cap ONLY on the entry tier (no higher plan
-  // present). Higher tiers pay more and scan uncapped.
-  if (feature === "matching") {
-    const hasHigherThanMatching = planEntries.some((p) =>
-      ["checklist", "auto_submission", "bundle"].includes(p.plan)
-    );
-    if (!hasHigherThanMatching) {
-      const usageInfo = await getUsageInfo(userId, periodStart, MATCHING_CAP_CENTS);
-      return {
-        allowed: !usageInfo.atLimit,
-        plan: topEntry.plan,
-        usage: usageInfo,
-      };
-    }
-  }
-
-  return { allowed: true, plan: topEntry.plan };
+  // Unified prepaid-credits cap: ALL AI features share one monthly pool equal
+  // to the highest active plan's cap (50% of its display price), extended by
+  // any purchased credits. When real spend meets the cap, every feature gates.
+  const baseCap = topPlanCapCents(planEntries);
+  const usageInfo = await getUsageInfo(userId, periodStart, baseCap);
+  return {
+    allowed: !usageInfo.atLimit,
+    plan: topEntry.plan,
+    usage: usageInfo,
+  };
 }
 
 /**
@@ -319,14 +321,16 @@ async function getUsageInfo(
   const costCents = usage[0]?.totalCostCents ?? 0;
   const creditsCents = credits[0]?.balanceCents ?? 0;
 
-  // At limit if cost exceeds cap AND no purchased credits remain
-  const overCap = costCents >= capCents;
-  const atLimit = overCap && creditsCents <= 0;
+  // Credits extend the cap by their (real) amount. Gate only when real spend
+  // meets or exceeds the plan cap PLUS purchased credit headroom.
+  const effectiveCapCents = capCents + creditsCents;
+  const atLimit = costCents >= effectiveCapCents;
 
   return {
     costCents,
     capCents,
     creditsCents,
+    effectiveCapCents,
     atLimit,
   };
 }

@@ -1,4 +1,4 @@
-import { requireAuth, getEffectiveAiCapCents } from "@/lib/auth";
+import { requireAuth, getEffectiveAiCapCents, toDisplayCents } from "@/lib/auth";
 import { db, aiUsage, aiCredits, customers, subscriptions } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 
@@ -79,14 +79,21 @@ export async function GET() {
   const creditsCents = credits?.balanceCents ?? 0;
   const requestCount = usage?.requestCount ?? 0;
 
-  // Uncapped tiers (checklist / admin bypass) have no meter math.
+  // capCents (from getEffectiveAiCapCents) is the REAL effective cap already
+  // INCLUDING purchased credits. Prepaid-credits meter math:
   const percentUsed = uncapped
     ? 0
     : Math.min(100, Math.round((costCents / capCents!) * 100));
   const atWarning = uncapped ? false : costCents >= capCents! * 0.8;
-  const atLimit = uncapped
-    ? false
-    : costCents >= capCents! && creditsCents <= 0;
+  const atLimit = uncapped ? false : costCents >= capCents!;
+
+  // User-facing "credit" values are shown at the marked-up display rate
+  // (what they paid), not our internal real cost.
+  const displayTotalCents = uncapped ? null : toDisplayCents(capCents!);
+  const displayUsedCents = uncapped ? null : toDisplayCents(costCents);
+  const displayRemainingCents = uncapped
+    ? null
+    : Math.max(0, displayTotalCents! - displayUsedCents!);
 
   return Response.json({
     costCents,
@@ -97,6 +104,10 @@ export async function GET() {
     percentUsed,
     atWarning,
     atLimit,
+    // Display-dollar credit figures for the usage meter
+    displayTotalCents,
+    displayUsedCents,
+    displayRemainingCents,
     periodStart: periodStart.toISOString(),
     periodEnd: periodEnd ? periodEnd.toISOString() : null,
   });
