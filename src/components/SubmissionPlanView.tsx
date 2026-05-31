@@ -156,6 +156,9 @@ export default function SubmissionPlanView({
   const [takeControl, setTakeControl] = useState(false);
   const [typeText, setTypeText] = useState("");
   const [sendingInteraction, setSendingInteraction] = useState(false);
+  const [dismissedDiscoveries, setDismissedDiscoveries] = useState<Set<string>>(
+    new Set()
+  );
 
   const sendInteraction = useCallback(
     async (interaction: Record<string, unknown>) => {
@@ -697,6 +700,9 @@ export default function SubmissionPlanView({
   const isRunning = planStatus === "running";
   const isComplete = planStatus === "completed";
   const isFailed = planStatus === "failed";
+  const visibleDiscoveries = discoveries.filter(
+    (d) => !dismissedDiscoveries.has(d.id)
+  );
   const submissionMethod = planData.submission_method || "portal";
   const isOnlineSubmission =
     submissionMethod === "portal" || submissionMethod === "mixed";
@@ -988,8 +994,10 @@ export default function SubmissionPlanView({
         </div>
       )}
 
-      {/* Live agent activity — what the agent sees + where it needs you */}
-      {(isRunning || waitingInfo) && (
+      {/* Live agent activity — what the agent sees + where it needs you.
+          Persists after the run ends (while logs exist) so all browser
+          activity stays in this single panel. */}
+      {(isRunning || waitingInfo || agentLogs.length > 0) && (
         <div className="bg-card border-2 border-accent/30 rounded-xl overflow-hidden shadow-sm">
           <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-accent/5">
             <div className="flex items-center gap-2">
@@ -998,17 +1006,27 @@ export default function SubmissionPlanView({
                   className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
                     waitingInfo
                       ? "bg-amber-400 animate-ping"
-                      : "bg-emerald-400 animate-ping"
+                      : isRunning
+                        ? "bg-emerald-400 animate-ping"
+                        : "bg-transparent"
                   }`}
                 />
                 <span
                   className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-                    waitingInfo ? "bg-amber-500" : "bg-emerald-500"
+                    waitingInfo
+                      ? "bg-amber-500"
+                      : isRunning
+                        ? "bg-emerald-500"
+                        : "bg-muted"
                   }`}
                 />
               </span>
               <h4 className="text-sm font-semibold">
-                {waitingInfo ? "Agent needs you" : "Agent working…"}
+                {waitingInfo
+                  ? "Agent needs you"
+                  : isRunning
+                    ? "Agent working…"
+                    : "Agent activity"}
               </h4>
             </div>
             {liveStep !== null && (
@@ -1030,24 +1048,32 @@ export default function SubmissionPlanView({
               In take-control mode it becomes an interactive surface: clicks +
               keystrokes are forwarded to the live page. */}
           {liveScreenshot ? (
-            <div className="relative bg-black/5 dark:bg-black/20">
+            <div
+              className={`relative bg-black/5 dark:bg-black/20 overflow-auto ${
+                takeControl ? "max-h-[70vh]" : "max-h-[460px]"
+              }`}
+            >
+              {/* Image is rendered at natural aspect (w-full, h-auto) — NOT
+                  object-contain — so the element box exactly matches the
+                  screenshot pixels. That makes click→percentage mapping
+                  accurate (object-contain letterboxing would offset clicks). */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={`data:image/jpeg;base64,${liveScreenshot}`}
                 alt="What the agent currently sees"
                 onClick={handleLiveClick}
-                className={`w-full max-h-[460px] object-contain ${
+                className={`w-full h-auto block ${
                   takeControl
                     ? "cursor-crosshair ring-2 ring-inset ring-accent"
                     : ""
                 }`}
               />
-              <span className="absolute bottom-2 right-2 text-[10px] font-medium px-2 py-1 rounded bg-black/60 text-white">
+              <span className="sticky bottom-2 float-right mr-2 text-[10px] font-medium px-2 py-1 rounded bg-black/60 text-white">
                 {takeControl ? "You're in control · click the page" : "Live view"}
                 {liveStep !== null ? ` · Step ${liveStep}` : ""}
               </span>
               {sendingInteraction && (
-                <span className="absolute top-2 right-2 flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded bg-black/60 text-white">
+                <span className="sticky top-2 float-left ml-2 flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded bg-black/60 text-white">
                   <Loader2 size={10} className="animate-spin" /> working…
                 </span>
               )}
@@ -1177,20 +1203,50 @@ export default function SubmissionPlanView({
               />
             </div>
           )}
+
+          {/* Full activity log — kept inside this panel so everything the
+              browser agent does lives in one place. */}
+          {agentLogs.length > 0 && (
+            <details className="border-t border-border" open={!isRunning}>
+              <summary className="px-4 py-2.5 text-xs font-semibold text-muted uppercase tracking-wider cursor-pointer hover:text-foreground select-none">
+                Activity log ({agentLogs.length})
+              </summary>
+              <div className="px-4 pb-3 max-h-48 overflow-y-auto font-mono text-xs space-y-1">
+                {agentLogs.map((log, i) => (
+                  <div
+                    key={i}
+                    className={
+                      log.startsWith("FAILED")
+                        ? "text-red-600 dark:text-red-400"
+                        : "text-foreground/60"
+                    }
+                  >
+                    {log}
+                  </div>
+                ))}
+                <div ref={logsEndRef} />
+              </div>
+            </details>
+          )}
         </div>
       )}
 
       {/* Discovered requirements */}
-      {discoveries.length > 0 && (
+      {visibleDiscoveries.length > 0 && (
         <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-border flex items-center gap-2">
-            <FileSearch size={14} className="text-amber-500" />
-            <h4 className="text-xs font-semibold text-muted uppercase tracking-wider">
-              Discovered Requirements ({discoveries.length})
-            </h4>
+          <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <FileSearch size={14} className="text-amber-500" />
+              <h4 className="text-xs font-semibold text-muted uppercase tracking-wider">
+                Discovered Requirements ({visibleDiscoveries.length})
+              </h4>
+            </div>
+            <span className="text-[10px] text-muted">
+              Notes from the agent — dismiss once handled
+            </span>
           </div>
           <div className="p-3 space-y-2">
-            {discoveries.map((d) => (
+            {visibleDiscoveries.map((d) => (
               <div
                 key={d.id}
                 className={`flex items-start gap-3 text-sm rounded-lg px-3 py-2.5 border ${
@@ -1252,6 +1308,23 @@ export default function SubmissionPlanView({
                     {d.suggested_action}
                   </p>
                 </div>
+                <button
+                  onClick={() =>
+                    setDismissedDiscoveries((prev) =>
+                      new Set(prev).add(d.id)
+                    )
+                  }
+                  className={`shrink-0 -mr-1 -mt-0.5 p-1 rounded transition-colors ${
+                    d.priority === "blocker"
+                      ? "text-red-500/70 hover:text-red-600 hover:bg-red-200/50 dark:hover:bg-red-500/20"
+                      : d.priority === "required"
+                        ? "text-amber-600/70 hover:text-amber-700 hover:bg-amber-200/50 dark:hover:bg-amber-500/20"
+                        : "text-muted hover:text-foreground hover:bg-surface"
+                  }`}
+                  title="Dismiss this note"
+                >
+                  <X size={13} />
+                </button>
               </div>
             ))}
           </div>
@@ -1486,32 +1559,6 @@ export default function SubmissionPlanView({
           );
         })}
       </div>
-
-      {/* Agent logs */}
-      {agentLogs.length > 0 && (
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-border">
-            <h4 className="text-xs font-semibold text-muted uppercase tracking-wider">
-              Agent Log
-            </h4>
-          </div>
-          <div className="px-4 py-3 max-h-48 overflow-y-auto font-mono text-xs space-y-1">
-            {agentLogs.map((log, i) => (
-              <div
-                key={i}
-                className={`${
-                  log.startsWith("FAILED")
-                    ? "text-red-600 dark:text-red-400"
-                    : "text-foreground/60"
-                }`}
-              >
-                {log}
-              </div>
-            ))}
-            <div ref={logsEndRef} />
-          </div>
-        </div>
-      )}
 
       {/* Collected artifacts */}
       {Object.keys(artifacts).length > 0 && (
