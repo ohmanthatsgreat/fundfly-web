@@ -412,6 +412,36 @@ export default function OrganizationPage() {
               className={inputClass}
             />
           </div>
+          <div>
+            <label className={labelClass}>CAGE Code</label>
+            <input
+              type="text"
+              value={(profile.cageCode as string) || ""}
+              onChange={(e) => update("cageCode", e.target.value)}
+              placeholder="e.g. 1ABC2"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Congressional District</label>
+            <input
+              type="text"
+              value={(profile.congressionalDistrict as string) || ""}
+              onChange={(e) => update("congressionalDistrict", e.target.value)}
+              placeholder="e.g. CA-12"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Indirect Cost Rate</label>
+            <input
+              type="text"
+              value={(profile.indirectCostRate as string) || ""}
+              onChange={(e) => update("indirectCostRate", e.target.value)}
+              placeholder="e.g. 10% de minimis, or NICRA %"
+              className={inputClass}
+            />
+          </div>
           <div className="flex items-end">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -507,6 +537,35 @@ export default function OrganizationPage() {
               onChange={(e) => update("contactPhone", e.target.value)}
               className={inputClass}
             />
+          </div>
+        </div>
+
+        <div className="pt-2 border-t border-border">
+          <p className="text-[11px] text-muted mb-3">
+            Authorized Organization Representative (AOR) — the person legally
+            authorized to submit on Grants.gov. Often the same as the primary
+            contact.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>Authorized Rep Name</label>
+              <input
+                type="text"
+                value={(profile.authorizedRepName as string) || ""}
+                onChange={(e) => update("authorizedRepName", e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Authorized Rep Title</label>
+              <input
+                type="text"
+                value={(profile.authorizedRepTitle as string) || ""}
+                onChange={(e) => update("authorizedRepTitle", e.target.value)}
+                placeholder="e.g. Principal Investigator, CEO"
+                className={inputClass}
+              />
+            </div>
           </div>
         </div>
       </section>

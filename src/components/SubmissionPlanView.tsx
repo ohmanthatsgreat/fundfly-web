@@ -148,6 +148,11 @@ export default function SubmissionPlanView({
   const [stepAttachments, setStepAttachments] = useState<StepAttachment[]>([]);
   const [uploadingFor, setUploadingFor] = useState<{ step: number; artifact: string } | null>(null);
   const [stepsReady, setStepsReady] = useState<Record<number, boolean>>({});
+  // Agent notes per step (blockers/required/optional discovered during a run),
+  // persisted in the plan artifacts so they survive after the run ends.
+  const [persistedStepNotes, setPersistedStepNotes] = useState<
+    Record<string, { text: string; kind: string }[]>
+  >({});
   // Live agent view: most recent screenshot + which step it belongs to.
   const [liveScreenshot, setLiveScreenshot] = useState<string | null>(null);
   const [liveStep, setLiveStep] = useState<number | null>(null);
@@ -233,6 +238,13 @@ export default function SubmissionPlanView({
             setStepsReady(JSON.parse(data.plan.artifacts._steps_ready));
           } catch {}
         }
+        if (data.plan.artifacts?._step_notes) {
+          try {
+            setPersistedStepNotes(
+              JSON.parse(data.plan.artifacts._step_notes)
+            );
+          } catch {}
+        }
       }
     } catch {}
   }, [applicationId]);
@@ -260,6 +272,54 @@ export default function SubmissionPlanView({
       logsEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [agentLogs]);
+
+  // Persist discoveries as per-step notes so they survive after the run.
+  // Merges live discoveries into the persisted map (dedup by text) and writes
+  // back to the plan artifacts.
+  useEffect(() => {
+    if (discoveries.length === 0 || !planId) return;
+    setPersistedStepNotes((prev) => {
+      const next: Record<string, { text: string; kind: string }[]> = {
+        ...prev,
+      };
+      let changed = false;
+      for (const d of discoveries) {
+        const key = String(d.step_discovered_at);
+        const list = next[key] ? [...next[key]] : [];
+        if (!list.some((n) => n.text === d.description)) {
+          list.push({ text: d.description, kind: d.priority });
+          next[key] = list;
+          changed = true;
+        }
+      }
+      if (changed) {
+        // Best-effort persist; ignore failures.
+        fetch("/api/app/submission-plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            application_id: applicationId,
+            update_artifacts: { _step_notes: JSON.stringify(next) },
+          }),
+        }).catch(() => {});
+      }
+      return changed ? next : prev;
+    });
+  }, [discoveries, planId, applicationId]);
+
+  // All notes for a step — persisted plus any live discoveries not yet saved.
+  const notesForStep = (stepNum: number): { text: string; kind: string }[] => {
+    const out = [...(persistedStepNotes[String(stepNum)] || [])];
+    for (const d of discoveries) {
+      if (
+        d.step_discovered_at === stepNum &&
+        !out.some((n) => n.text === d.description)
+      ) {
+        out.push({ text: d.description, kind: d.priority });
+      }
+    }
+    return out;
+  };
 
   async function handleAttachFile(
     stepNumber: number,
@@ -1338,6 +1398,8 @@ export default function SubmissionPlanView({
           const message = stepMessages[step.step_number];
           const isExpanded = expandedSteps.has(step.step_number);
           const isReady = stepsReady[step.step_number] || status === "completed";
+          const stepNotes = notesForStep(step.step_number);
+          const hasBlockerNote = stepNotes.some((n) => n.kind === "blocker");
 
           return (
             <div
@@ -1384,6 +1446,20 @@ export default function SubmissionPlanView({
                     <span className="text-xs text-muted">
                       {step.estimated_time}
                     </span>
+                    {stepNotes.length > 0 && (
+                      <span
+                        className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                          hasBlockerNote
+                            ? "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300"
+                            : "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300"
+                        }`}
+                        title="The agent left notes on this step"
+                      >
+                        <AlertTriangle size={10} />
+                        {stepNotes.length} note
+                        {stepNotes.length > 1 ? "s" : ""}
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm font-medium mt-0.5">
                     {step.action}
@@ -1404,6 +1480,33 @@ export default function SubmissionPlanView({
                   <p className="text-sm text-foreground/60">
                     {step.description}
                   </p>
+
+                  {/* Agent notes for this step (persisted across runs) */}
+                  {stepNotes.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-semibold text-muted uppercase tracking-wide flex items-center gap-1.5">
+                        <AlertTriangle size={11} className="text-amber-500" />
+                        Agent notes
+                      </p>
+                      {stepNotes.map((n, i) => (
+                        <div
+                          key={i}
+                          className={`flex items-start gap-2 text-xs rounded-lg px-2.5 py-2 border ${
+                            n.kind === "blocker"
+                              ? "bg-red-50 border-red-200 text-red-800 dark:bg-red-500/10 dark:border-red-500/20 dark:text-red-200"
+                              : n.kind === "required"
+                                ? "bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-500/10 dark:border-amber-500/20 dark:text-amber-200"
+                                : "bg-surface border-border text-foreground/70"
+                          }`}
+                        >
+                          <span className="font-semibold uppercase text-[9px] mt-0.5 shrink-0">
+                            {n.kind}
+                          </span>
+                          <span>{n.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-3 text-xs">
                     {step.artifacts_needed.length > 0 && (

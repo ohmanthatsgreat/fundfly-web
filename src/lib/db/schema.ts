@@ -130,6 +130,13 @@ export const userProfiles = pgTable("user_profiles", {
   yearFounded: text("year_founded"),
   technologyReadinessLevel: text("technology_readiness_level"),
   geographicFocus: text("geographic_focus"),
+  // Federal submission fields (added 2026-05-27) — frequently required on
+  // Grants.gov / SAM.gov / SBIR forms.
+  cageCode: text("cage_code"),
+  congressionalDistrict: text("congressional_district"),
+  indirectCostRate: text("indirect_cost_rate"), // NICRA % or "10% de minimis"
+  authorizedRepName: text("authorized_rep_name"), // AOR for Grants.gov
+  authorizedRepTitle: text("authorized_rep_title"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 

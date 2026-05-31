@@ -39,7 +39,13 @@ function buildAgentProfile(
     add("Field of Study", personal.fieldOfStudy);
     add("Current School", personal.currentSchool);
     add("Employment Status", personal.employmentStatus);
+    add("Annual Income", personal.annualIncome);
+    add("Household Size", personal.householdSize);
     add("Veteran Status", personal.veteranStatus);
+    add("Disability Status", personal.disabilityStatus);
+    add("Gender", personal.gender);
+    add("Race/Ethnicity", personal.raceEthnicity);
+    add("Housing Status", personal.housingStatus);
     return out;
   }
 
@@ -48,16 +54,21 @@ function buildAgentProfile(
     add("Organization Type", org.orgType);
     add("EIN", org.ein);
     add("UEI", org.uei);
+    add("CAGE Code", org.cageCode);
     add("SAM.gov Registered", org.samRegistered ? "Yes" : "");
     add("Address", org.address);
     add("City", org.city);
     add("State", org.state);
     add("ZIP", org.zip);
+    add("Congressional District", org.congressionalDistrict);
     add("Contact Name", org.contactName);
     add("Contact Email", org.contactEmail);
     add("Contact Phone", org.contactPhone);
+    add("Authorized Representative", org.authorizedRepName);
+    add("Authorized Representative Title", org.authorizedRepTitle);
     add("Website", org.website);
     add("NAICS Codes", org.naicsCodes);
+    add("Indirect Cost Rate", org.indirectCostRate);
     add("Certifications", org.certifications);
     add("Annual Revenue", org.annualRevenue);
     add("Employee Count", org.employeeCount);
