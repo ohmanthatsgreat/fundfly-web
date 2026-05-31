@@ -126,11 +126,44 @@ context small so we don't get cut off mid-task.
    gates at `cost ≥ cap + credits`. `ai-usage` route + Settings panel show
    display-dollar credit (`toDisplayCents` = 2×), "AI Credit This Period" meter,
    at-limit banner with renewal date + "buy more or wait" wording.
-   **⏳ Remaining = Stripe top-up purchase flow** (the only deferred piece): a
-   Stripe product/price for credit packs + checkout + webhook that adds the
-   REAL amount (50% of purchase) to `aiCredits.balanceCents`. Wire the
-   "Get more AI credit" CTA (Settings) to it. The accounting/gating/display
-   are all live and already credit-aware — only the payment path is missing.
+   **⏳ Remaining = Stripe top-up purchase flow** (the only deferred piece). The
+   accounting/gating/display are all live and credit-aware — only the payment
+   path is missing. Do this in ONE fresh session (billing code). Build-ready spec:
+
+   **Model.** User buys a credit pack at DISPLAY price; we add REAL headroom =
+   `displayPaid / AI_MARKUP` (50%) to `aiCredits.balanceCents`. So a $50 pack →
+   +$25 real headroom → +$50 of display credit (matches the user's mental model:
+   "what they pay is what they see"). `getUsageInfo` already extends the cap by
+   `balanceCents`, so once the row is incremented, gating + the Settings meter
+   "just work" — no other code changes needed for it to take effect.
+
+   **Files / steps:**
+   1. `lib/stripe.ts` — add credit-pack price IDs (or use a single price with a
+      `quantity`, OR ad-hoc `price_data` for arbitrary $). Recommend fixed packs:
+      $25 / $50 / $100 (display). Add `STRIPE_CREDIT_*_PRICE_ID` envs (Credentials
+      doc + Vercel).
+   2. `POST /api/stripe/credit-checkout` — mirror `stripe/checkout/route.ts`
+      (reuse `getOrCreateCustomer`, the stale-customer self-heal, Rewardful ref).
+      `mode: "payment"` (one-time, NOT subscription). Put
+      `metadata: { kind: "ai_credit_topup", userId, displayCents }` on the
+      session so the webhook knows how much real headroom to grant.
+   3. `stripe/webhook/route.ts` — handle `checkout.session.completed` where
+      `metadata.kind === "ai_credit_topup"`: compute `realCents =
+      round(displayCents / AI_MARKUP)`, upsert `aiCredits` (insert or
+      `balanceCents += realCents`). MUST be idempotent — key off
+      `session.id`/`payment_intent` (store last-applied id, or a
+      `credit_topups` ledger table) so Stripe retries don't double-credit.
+      (Export `AI_MARKUP` from auth.ts or duplicate the constant.)
+   4. UI — wire the Settings "Get more AI credit" CTA + the UpgradeModal
+      usage-limit path to a small pack picker → `credit-checkout`. Show packs in
+      DISPLAY dollars.
+   5. Verify: buy a $25 pack in Stripe test → webhook 200 → `aiCredits.balanceCents`
+      +1250 → Settings shows +$25 credit → cap extended → refund.
+
+   **Gotchas:** idempotency (above) · one-time `mode:"payment"` not subscription ·
+   the credit is REAL cents = display/2 (don't store display) · `aiCredits` is
+   per-user not per-period, so top-ups persist across renewals (decide if that's
+   desired — probably yes; they bought it).
    Note: `AI_MARKUP` is one constant — raise it if affiliate cuts squeeze margin.
 
 4. **Free trial covers ALL AI features.** ✅ DONE (2026-05-31). `trial/start`
