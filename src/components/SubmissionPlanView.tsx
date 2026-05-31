@@ -151,6 +151,30 @@ export default function SubmissionPlanView({
   // Live agent view: most recent screenshot + which step it belongs to.
   const [liveScreenshot, setLiveScreenshot] = useState<string | null>(null);
   const [liveStep, setLiveStep] = useState<number | null>(null);
+  const [attachingApp, setAttachingApp] = useState(false);
+
+  // Has the generated application been registered as an agent-uploadable doc?
+  const generatedAppAttached = stepAttachments.some(
+    (a) => a.source === "ai_generated" && a.artifactName === "Full Application"
+  );
+
+  async function handleAttachGeneratedApp() {
+    setAttachingApp(true);
+    try {
+      const res = await fetch("/api/app/attach-generated-application", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ application_id: applicationId }),
+      });
+      const data = await res.json();
+      if (data.document) {
+        setStepAttachments((prev) => [...prev, data.document]);
+      }
+    } catch {
+      // non-fatal — user can retry
+    }
+    setAttachingApp(false);
+  }
 
   const fetchPlan = useCallback(async () => {
     try {
@@ -745,6 +769,15 @@ export default function SubmissionPlanView({
         </div>
       )}
 
+      {/* Stage progress — makes the 3-step sequence explicit */}
+      <StageStepper
+        checklistDone={true}
+        applicationDone={hasSections}
+        submitDone={isComplete}
+        submitActive={isRunning}
+        isOnlineSubmission={isOnlineSubmission}
+      />
+
       {/* Plan summary */}
       <div className="bg-card border border-border rounded-xl p-5 space-y-4">
         <div className="flex items-center justify-between">
@@ -833,7 +866,7 @@ export default function SubmissionPlanView({
       {hasSections && !isRunning && !isComplete && planStatus === "pending" && (
         <div className="flex items-start gap-2 text-sm text-emerald-700 dark:text-emerald-400 bg-emerald-50 border border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/20 rounded-xl px-4 py-3">
           <CheckCircle size={16} className="shrink-0 mt-0.5" />
-          <div>
+          <div className="flex-1">
             <p className="font-medium">Application content is ready.</p>
             <p className="text-xs mt-1 text-emerald-700/80 dark:text-emerald-300/80">
               Click <strong>Start Auto-Submission</strong> above to begin.
@@ -842,6 +875,37 @@ export default function SubmissionPlanView({
               You&apos;ll see live progress updates here, and we&apos;ll pause
               for your approval before anything is submitted.
             </p>
+
+            {/* Make the generated proposal a file the agent can upload */}
+            <div className="mt-3 pt-3 border-t border-emerald-200/60 dark:border-emerald-500/20">
+              {generatedAppAttached ? (
+                <p className="flex items-center gap-1.5 text-xs font-medium">
+                  <FileText size={13} className="shrink-0" />
+                  Generated application attached — the agent will upload it
+                  where a proposal is required.
+                </p>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={handleAttachGeneratedApp}
+                    disabled={attachingApp}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                  >
+                    {attachingApp ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <Paperclip size={13} />
+                    )}
+                    {attachingApp
+                      ? "Attaching…"
+                      : "Attach application for the agent to upload"}
+                  </button>
+                  <span className="text-[11px] text-emerald-700/70 dark:text-emerald-300/70">
+                    Adds your generated proposal as a DOCX the agent can submit.
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -1289,6 +1353,99 @@ export default function SubmissionPlanView({
           feature={showUpgrade}
           onClose={() => setShowUpgrade(null)}
         />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Three-stage progress indicator that makes the submission sequence explicit:
+ *   1. Pre-Submission Checklist  → 2. Generate Application  → 3. Auto-Submit
+ * Stage 2 is positioned after the checklist so the proposal can incorporate
+ * anything discovered during research.
+ */
+function StageStepper({
+  checklistDone,
+  applicationDone,
+  submitDone,
+  submitActive,
+  isOnlineSubmission,
+}: {
+  checklistDone: boolean;
+  applicationDone: boolean;
+  submitDone: boolean;
+  submitActive: boolean;
+  isOnlineSubmission: boolean;
+}) {
+  const stages = [
+    {
+      label: "Checklist",
+      sub: "Requirements researched",
+      done: checklistDone,
+      active: false,
+    },
+    {
+      label: "Application",
+      sub: applicationDone ? "Content generated" : "Generate your content",
+      done: applicationDone,
+      active: checklistDone && !applicationDone,
+    },
+    {
+      label: isOnlineSubmission ? "Auto-Submit" : "Download & Send",
+      sub: isOnlineSubmission
+        ? submitDone
+          ? "Submitted"
+          : "Agent files for you"
+        : "Export the package",
+      done: submitDone,
+      active: applicationDone && !submitDone,
+    },
+  ];
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4">
+      <div className="flex items-center">
+        {stages.map((s, i) => (
+          <div key={s.label} className="flex items-center flex-1 last:flex-none">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div
+                className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold border-2 transition-colors ${
+                  s.done
+                    ? "bg-emerald-500 border-emerald-500 text-white"
+                    : s.active
+                      ? "border-accent text-accent"
+                      : "border-border text-muted"
+                }`}
+              >
+                {s.done ? <CheckCircle size={15} /> : i + 1}
+              </div>
+              <div className="min-w-0">
+                <p
+                  className={`text-xs font-semibold leading-tight truncate ${
+                    s.done || s.active ? "text-foreground" : "text-muted"
+                  }`}
+                >
+                  {s.label}
+                </p>
+                <p className="text-[10px] text-muted leading-tight truncate hidden sm:block">
+                  {s.sub}
+                </p>
+              </div>
+            </div>
+            {i < stages.length - 1 && (
+              <div
+                className={`flex-1 h-0.5 mx-2 sm:mx-3 rounded ${
+                  stages[i].done ? "bg-emerald-400/60" : "bg-border"
+                }`}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+      {submitActive && (
+        <p className="text-[11px] text-accent mt-2.5 text-center sm:text-left">
+          Auto-submission in progress…
+        </p>
       )}
     </div>
   );
