@@ -72,7 +72,7 @@ export default function OpportunityCard({
       role="button"
       tabIndex={0}
       aria-label={`View details for ${opp.title}`}
-      className="group bg-card border border-border rounded-xl p-5 hover:shadow-md transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+      className="group bg-card border border-border rounded-2xl p-5 shadow-xs hover:shadow-md hover:border-accent/30 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
       onClick={() => onSelect?.(opp)}
       onKeyDown={(e) => {
         if (

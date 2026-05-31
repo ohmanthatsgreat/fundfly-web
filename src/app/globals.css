@@ -2,16 +2,24 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #0f172a;
-  --muted: #64748b;
-  --border: #e2e8f0;
-  --accent: #2563eb;
-  --accent-light: #dbeafe;
-  --surface: #f8fafc;
+  --foreground: #0e1729;
+  --muted: #5b6675;
+  --border: #e7ebf1;
+  --accent: #2456e6;
+  --accent-light: #eaf0fe;
+  --surface: #f5f7fb;
   --card: #ffffff;
-  --danger: #ef4444;
-  --success: #22c55e;
-  --warning: #f59e0b;
+  --danger: #e5484d;
+  --success: #2a9d6b;
+  --warning: #d98a00;
+  --ring: rgba(36, 86, 230, 0.35);
+
+  /* Refined, layered elevation — soft fintech depth used by shadow-* utils */
+  --elevation-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --elevation-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
+  --elevation-md: 0 2px 6px -2px rgba(15, 23, 42, 0.06), 0 6px 16px -4px rgba(15, 23, 42, 0.08);
+  --elevation-lg: 0 6px 14px -6px rgba(15, 23, 42, 0.08), 0 14px 32px -8px rgba(15, 23, 42, 0.12);
+  --elevation-xl: 0 12px 24px -8px rgba(15, 23, 42, 0.1), 0 28px 56px -12px rgba(15, 23, 42, 0.16);
 }
 
 @theme inline {
@@ -26,22 +34,38 @@
   --color-danger: var(--danger);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  --color-ring: var(--ring);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Map refined elevation onto Tailwind's shadow scale */
+  --shadow-xs: var(--elevation-xs);
+  --shadow-sm: var(--elevation-sm);
+  --shadow-md: var(--elevation-md);
+  --shadow-lg: var(--elevation-lg);
+  --shadow-xl: var(--elevation-xl);
 }
 
 .dark {
-  --background: #0b0f1a;
-  --foreground: #e2e8f0;
-  --muted: #94a3b8;
-  --border: #1e293b;
-  --accent: #3b82f6;
-  --accent-light: #1e3a5f;
-  --surface: #111827;
-  --card: #151d2e;
-  --danger: #f87171;
-  --success: #4ade80;
-  --warning: #fbbf24;
+  --background: #0a0e16;
+  --foreground: #e6ebf2;
+  --muted: #93a0b3;
+  --border: #212a3a;
+  --accent: #4d82f7;
+  --accent-light: #16243f;
+  --surface: #0f1521;
+  --card: #141b29;
+  --danger: #f3676b;
+  --success: #45c98a;
+  --warning: #f5b544;
+  --ring: rgba(77, 130, 247, 0.4);
+
+  /* Deeper, cooler shadows for dark surfaces */
+  --elevation-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --elevation-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.5);
+  --elevation-md: 0 2px 6px -2px rgba(0, 0, 0, 0.5), 0 6px 16px -4px rgba(0, 0, 0, 0.55);
+  --elevation-lg: 0 6px 14px -6px rgba(0, 0, 0, 0.55), 0 14px 32px -8px rgba(0, 0, 0, 0.6);
+  --elevation-xl: 0 12px 24px -8px rgba(0, 0, 0, 0.6), 0 28px 56px -12px rgba(0, 0, 0, 0.65);
 }
 
 body {
@@ -50,6 +74,36 @@ body {
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Crisper, more deliberate headings (refined-professional type hierarchy) */
+h1, h2, h3, h4 {
+  letter-spacing: -0.018em;
+}
+h1 { letter-spacing: -0.028em; }
+
+/* Tabular figures for stats/counts so numbers align and feel precise */
+.tabular-nums,
+[class*="text-3xl"],
+[class*="text-4xl"],
+[class*="text-5xl"] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Unified, accessible focus ring across the app */
+*:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Subtle, consistent motion on interactive surfaces */
+a,
+button {
+  transition: color 0.15s ease, background-color 0.15s ease,
+    border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease,
+    opacity 0.15s ease;
 }
 
 /* Scrollbar */
