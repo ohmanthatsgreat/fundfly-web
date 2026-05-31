@@ -151,6 +151,17 @@ export async function POST(request: NextRequest) {
       return Response.json(data);
     }
 
+    if (action === "interact") {
+      // Human take-control interaction (click/type/key/scroll) forwarded to
+      // the live browser. The worker replies + streams a fresh screenshot.
+      const res = await workerFetch("/agent/interact", {
+        method: "POST",
+        body: JSON.stringify({ plan_id, action: body.interaction }),
+      });
+      const data = await res.json();
+      return Response.json(data);
+    }
+
     if (action === "provide_uploads") {
       const res = await workerFetch("/agent/uploads", {
         method: "POST",

@@ -152,6 +152,44 @@ export default function SubmissionPlanView({
   const [liveScreenshot, setLiveScreenshot] = useState<string | null>(null);
   const [liveStep, setLiveStep] = useState<number | null>(null);
   const [attachingApp, setAttachingApp] = useState(false);
+  // Take-control (interactive browser): forward clicks/keys to the live page.
+  const [takeControl, setTakeControl] = useState(false);
+  const [typeText, setTypeText] = useState("");
+  const [sendingInteraction, setSendingInteraction] = useState(false);
+
+  const sendInteraction = useCallback(
+    async (interaction: Record<string, unknown>) => {
+      if (!planId) return;
+      setSendingInteraction(true);
+      try {
+        await fetch("/api/app/submission-agent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "interact",
+            plan_id: planId,
+            interaction,
+          }),
+        });
+        // The worker streams a fresh screenshot back over SSE automatically.
+      } catch {
+        // non-fatal
+      }
+      setSendingInteraction(false);
+    },
+    [planId]
+  );
+
+  const handleLiveClick = useCallback(
+    (e: React.MouseEvent<HTMLImageElement>) => {
+      if (!takeControl) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const xPct = (e.clientX - rect.left) / rect.width;
+      const yPct = (e.clientY - rect.top) / rect.height;
+      sendInteraction({ kind: "click", xPct, yPct });
+    },
+    [takeControl, sendInteraction]
+  );
 
   // Has the generated application been registered as an agent-uploadable doc?
   const generatedAppAttached = stepAttachments.some(
@@ -330,6 +368,8 @@ export default function SubmissionPlanView({
     setDiscoveries([]);
     setLiveScreenshot(null);
     setLiveStep(null);
+    setTakeControl(false);
+    setTypeText("");
 
     // Start the agent via our proxy
     const startRes = await fetch("/api/app/submission-agent", {
@@ -456,6 +496,20 @@ export default function SubmissionPlanView({
             description: data.description,
           });
           break;
+        case "waiting_interaction":
+          if (data.step) {
+            setStepStatuses((prev) => ({
+              ...prev,
+              [data.step!.step_number]: "waiting_approval",
+            }));
+          }
+          setWaitingInfo({
+            type: "interaction",
+            description: data.description,
+          });
+          // Auto-enable take-control so the user can act immediately.
+          setTakeControl(true);
+          break;
         case "discovery":
           if (data.requirements) {
             setDiscoveries((prev) => {
@@ -491,6 +545,8 @@ export default function SubmissionPlanView({
   const handleResume = async (payload?: Record<string, unknown>) => {
     if (!planId) return;
     setWaitingInfo(null);
+    setTakeControl(false);
+    setTypeText("");
     await fetch("/api/app/submission-agent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -948,18 +1004,31 @@ export default function SubmissionPlanView({
             )}
           </div>
 
-          {/* Latest screenshot — what the headless browser currently sees */}
+          {/* Latest screenshot — what the headless browser currently sees.
+              In take-control mode it becomes an interactive surface: clicks +
+              keystrokes are forwarded to the live page. */}
           {liveScreenshot ? (
             <div className="relative bg-black/5 dark:bg-black/20">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={`data:image/jpeg;base64,${liveScreenshot}`}
                 alt="What the agent currently sees"
-                className="w-full max-h-[420px] object-contain"
+                onClick={handleLiveClick}
+                className={`w-full max-h-[460px] object-contain ${
+                  takeControl
+                    ? "cursor-crosshair ring-2 ring-inset ring-accent"
+                    : ""
+                }`}
               />
               <span className="absolute bottom-2 right-2 text-[10px] font-medium px-2 py-1 rounded bg-black/60 text-white">
-                Live view{liveStep !== null ? ` · Step ${liveStep}` : ""}
+                {takeControl ? "You're in control · click the page" : "Live view"}
+                {liveStep !== null ? ` · Step ${liveStep}` : ""}
               </span>
+              {sendingInteraction && (
+                <span className="absolute top-2 right-2 flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded bg-black/60 text-white">
+                  <Loader2 size={10} className="animate-spin" /> working…
+                </span>
+              )}
             </div>
           ) : (
             <div className="px-4 py-8 flex flex-col items-center justify-center text-center text-muted">
@@ -968,6 +1037,100 @@ export default function SubmissionPlanView({
                 Starting the browser… the agent runs on our servers, so
                 there&apos;s no window to watch — its view will appear here.
               </p>
+            </div>
+          )}
+
+          {/* Take-control bar — available whenever the agent is paused. Lets a
+              human solve captchas / puzzles / anything the agent can't. */}
+          {waitingInfo && liveScreenshot && (
+            <div className="px-4 py-3 border-t border-border space-y-2 bg-surface/40">
+              <div className="flex items-center justify-between gap-2">
+                <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={takeControl}
+                    onChange={(e) => setTakeControl(e.target.checked)}
+                    className="accent-accent"
+                  />
+                  Take control of the browser
+                </label>
+                {takeControl && (
+                  <span className="text-[10px] text-muted">
+                    Click the page above · type below
+                  </span>
+                )}
+              </div>
+              {takeControl && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={typeText}
+                      onChange={(e) => setTypeText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          if (typeText) {
+                            sendInteraction({ kind: "type", text: typeText });
+                            setTypeText("");
+                          }
+                        }
+                      }}
+                      placeholder="Type into the focused field, then Enter…"
+                      className="flex-1 px-3 py-1.5 text-xs bg-card border border-border rounded-md focus:outline-none focus:border-accent"
+                    />
+                    <button
+                      onClick={() => {
+                        if (typeText) {
+                          sendInteraction({ kind: "type", text: typeText });
+                          setTypeText("");
+                        }
+                      }}
+                      disabled={!typeText || sendingInteraction}
+                      className="px-3 py-1.5 text-xs font-medium rounded-md bg-accent text-white hover:bg-accent/90 disabled:opacity-50"
+                    >
+                      Type
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {[
+                      { label: "Enter", key: "Enter" },
+                      { label: "Tab", key: "Tab" },
+                      { label: "Backspace", key: "Backspace" },
+                      { label: "Esc", key: "Escape" },
+                    ].map((k) => (
+                      <button
+                        key={k.key}
+                        onClick={() =>
+                          sendInteraction({ kind: "key", key: k.key })
+                        }
+                        disabled={sendingInteraction}
+                        className="px-2 py-1 text-[11px] font-medium rounded border border-border hover:bg-card disabled:opacity-50"
+                      >
+                        {k.label}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() =>
+                        sendInteraction({ kind: "scroll", dyPct: 0.6 })
+                      }
+                      disabled={sendingInteraction}
+                      className="px-2 py-1 text-[11px] font-medium rounded border border-border hover:bg-card disabled:opacity-50"
+                    >
+                      Scroll ↓
+                    </button>
+                    <button
+                      onClick={() =>
+                        sendInteraction({ kind: "scroll", dyPct: -0.6 })
+                      }
+                      disabled={sendingInteraction}
+                      className="px-2 py-1 text-[11px] font-medium rounded border border-border hover:bg-card disabled:opacity-50"
+                    >
+                      Scroll ↑
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1635,7 +1798,7 @@ function WaitingBlock({
     );
   }
 
-  // Fall through to legacy login or approval blocks
+  // Fall through to legacy login, interaction, or approval blocks
   return (
     <div className="bg-amber-50 border border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/20 rounded-xl p-5 space-y-3">
       {waitingInfo.type === "login" ? (
@@ -1651,6 +1814,25 @@ function WaitingBlock({
             <strong>{waitingInfo.portal}</strong>. Since the browser runs on
             our server, please log in separately and click &quot;Continue&quot;
             when ready.
+          </p>
+        </>
+      ) : waitingInfo.type === "interaction" ? (
+        <>
+          <div className="flex items-center gap-2">
+            <AlertTriangle
+              size={18}
+              className="text-amber-600 dark:text-amber-400"
+            />
+            <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+              Your help needed
+            </h4>
+          </div>
+          <p className="text-sm text-amber-900/80 dark:text-amber-200/80">
+            {waitingInfo.description ||
+              "The agent hit something it can't solve on its own (like a CAPTCHA)."}{" "}
+            Turn on <strong>Take control of the browser</strong> above, solve
+            it directly in the live view, then click{" "}
+            <strong>I&apos;ve solved it — Resume</strong>.
           </p>
         </>
       ) : (
@@ -1676,7 +1858,9 @@ function WaitingBlock({
           className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent to-purple-500 text-white text-sm font-medium rounded-lg hover:opacity-90 transition-all"
         >
           <ArrowRight size={14} />
-          Continue
+          {waitingInfo.type === "interaction"
+            ? "I've solved it — Resume"
+            : "Continue"}
         </button>
         <button
           onClick={onCancel}
