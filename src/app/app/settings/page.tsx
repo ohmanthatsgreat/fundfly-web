@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import {
   Loader2,
@@ -8,6 +9,7 @@ import {
   RotateCcw,
   Zap,
   AlertTriangle,
+  ArrowRight,
 } from "lucide-react";
 
 type AiUsage = {
@@ -291,18 +293,36 @@ export default function SettingsPage() {
             </div>
           )}
 
-          <p className="text-xs text-muted mt-4">
-            Your cap covers all AI features — matching, application drafting,
-            and auto-submission. Cost is computed from actual Anthropic API
-            usage at our published model rates. Credit
-            purchase coming soon — email{" "}
+          {/* Upgrade / top-up CTA — more prominent when at/near the cap */}
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Link
+              href="/pricing"
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all ${
+                usage.atLimit || usage.atWarning
+                  ? "bg-gradient-to-r from-accent to-purple-500 text-white shadow-sm hover:shadow-md hover:brightness-105"
+                  : "border border-border text-foreground hover:border-accent/40 hover:bg-surface"
+              }`}
+            >
+              {usage.atLimit ? "Get more AI credit" : "Upgrade plan"}
+              <ArrowRight size={13} />
+            </Link>
+          </div>
+
+          <p className="text-xs text-muted mt-3">
+            Your monthly credit covers all AI features — matching, application
+            drafting, and auto-submission. One-click credit top-ups are coming
+            soon; for now,{" "}
+            <Link href="/pricing" className="text-accent hover:underline">
+              upgrade your plan
+            </Link>{" "}
+            for a larger monthly credit, or email{" "}
             <a
               href="mailto:support@fundfly.app"
               className="text-accent hover:underline"
             >
               support@fundfly.app
             </a>{" "}
-            if you need additional credits now.
+            for an immediate top-up.
           </p>
         </div>
       )}

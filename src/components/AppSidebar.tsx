@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { UserButton } from "@clerk/nextjs";
+import { UserButton, useClerk } from "@clerk/nextjs";
 import {
   LayoutGrid,
   Briefcase,
@@ -179,6 +179,7 @@ const baseNavItems = [
 
 export default function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const { openUserProfile } = useClerk();
   const { user } = useUser();
   const [collapsed, setCollapsed] = useState(false);
   const { resolved, setTheme } = useTheme();
@@ -300,7 +301,12 @@ export default function AppSidebar({ onNavigate }: { onNavigate?: () => void }) 
         <div className="flex items-center gap-3">
           <UserButton />
           {!collapsed && (
-            <span className="text-xs text-muted truncate">Account</span>
+            <button
+              onClick={() => openUserProfile()}
+              className="text-xs text-muted hover:text-foreground truncate transition-colors text-left"
+            >
+              Account
+            </button>
           )}
         </div>
         <button

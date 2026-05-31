@@ -267,18 +267,29 @@ export default function GuidedTour({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-[9999]">
-      {/* Overlay */}
-      <div
-        className="absolute inset-0 bg-black/60 transition-opacity duration-300"
-        onClick={handleSkip}
-      />
-
-      {/* Spotlight cutout */}
-      {showSpotlight && (
+      {/* Dimming overlay. When a spotlight is shown, the spotlight's own ring
+          shadow does the dimming (leaving the highlighted target clear), so we
+          skip the full-screen layer to avoid double-darkening the target. */}
+      {!showSpotlight && (
         <div
-          className="absolute border-2 border-accent/60 shadow-[0_0_0_9999px_rgba(0,0,0,0.55)] transition-all duration-300 ease-out"
-          style={spotlightStyle}
+          className="absolute inset-0 bg-black/50 transition-opacity duration-300"
+          onClick={handleSkip}
         />
+      )}
+
+      {/* Spotlight cutout — the ring shadow dims everything OUTSIDE the target,
+          while the cutout itself stays fully bright. */}
+      {showSpotlight && (
+        <>
+          <div
+            className="absolute inset-0"
+            onClick={handleSkip}
+          />
+          <div
+            className="absolute rounded-lg border-2 border-accent shadow-[0_0_0_9999px_rgba(0,0,0,0.48)] ring-4 ring-accent/30 transition-all duration-300 ease-out pointer-events-none"
+            style={spotlightStyle}
+          />
+        </>
       )}
 
       {/* Tooltip — caps at 380px on desktop but shrinks to fit small phones with 16px gutter each side */}
