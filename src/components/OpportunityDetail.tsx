@@ -253,7 +253,7 @@ export default function OpportunityDetail({
       {/* Slide-in panel */}
       <div className="fixed inset-y-0 right-0 w-full max-w-2xl bg-background border-l border-border z-50 flex flex-col shadow-2xl animate-in slide-in-from-right duration-200">
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 p-6 border-b border-border shrink-0">
+        <div className="flex items-start justify-between gap-3 p-6 border-b border-border shrink-0 bg-gradient-to-b from-surface/70 to-transparent">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               <span
@@ -287,7 +287,7 @@ export default function OpportunityDetail({
                 </span>
               )}
             </div>
-            <h2 className="text-base font-semibold leading-snug text-foreground">
+            <h2 className="text-lg font-semibold leading-snug text-foreground tracking-tight">
               {opp.title}
             </h2>
           </div>
@@ -334,57 +334,67 @@ export default function OpportunityDetail({
             </div>
           ) : null}
 
-          {/* Key details grid */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Key details — crisp stat tiles */}
+          <div className="grid grid-cols-2 gap-3">
             {opp.agency && (
-              <div className="space-y-1">
-                <div className="flex items-center gap-1.5 text-xs text-muted">
-                  <Building2 size={12} />
+              <div className="rounded-xl border border-border bg-surface/60 p-3 space-y-1.5">
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted uppercase tracking-wide">
+                  <Building2 size={12} className="text-accent" />
                   Agency
                 </div>
-                <p className="text-sm font-medium">{opp.agency}</p>
+                <p className="text-sm font-semibold leading-snug">{opp.agency}</p>
               </div>
             )}
             {fundingRange && (
-              <div className="space-y-1">
-                <div className="flex items-center gap-1.5 text-xs text-muted">
-                  <DollarSign size={12} />
+              <div className="rounded-xl border border-border bg-surface/60 p-3 space-y-1.5">
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted uppercase tracking-wide">
+                  <DollarSign size={12} className="text-emerald-500" />
                   Funding
                 </div>
-                <p className="text-sm font-medium">{fundingRange}</p>
+                <p className="text-sm font-semibold tabular-nums">{fundingRange}</p>
               </div>
             )}
-            {deadlineDate && (
-              <div className="space-y-1">
-                <div className="flex items-center gap-1.5 text-xs text-muted">
-                  <Clock size={12} />
+            {deadlineDate ? (
+              <div
+                className={`rounded-xl border p-3 space-y-1.5 ${
+                  isUrgent
+                    ? "border-red-200 bg-red-50 dark:border-red-500/20 dark:bg-red-500/10"
+                    : "border-border bg-surface/60"
+                }`}
+              >
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted uppercase tracking-wide">
+                  <Clock
+                    size={12}
+                    className={isUrgent ? "text-red-500" : "text-amber-500"}
+                  />
                   Deadline
                 </div>
-                <p className="text-sm font-medium">{formatDate(opp.deadline)}</p>
+                <p className="text-sm font-semibold">{formatDate(opp.deadline)}</p>
                 {days !== null && days >= 0 && (
                   <p
-                    className={`text-xs ${isUrgent ? "text-red-500" : "text-muted"}`}
+                    className={`text-xs font-medium ${
+                      isUrgent ? "text-red-500" : "text-muted"
+                    }`}
                   >
                     {days === 0 ? "Due today" : `${days} days remaining`}
                   </p>
                 )}
               </div>
-            )}
-            {!deadlineDate && (
-              <div className="space-y-1">
-                <div className="flex items-center gap-1.5 text-xs text-muted">
-                  <Clock size={12} />
+            ) : (
+              <div className="rounded-xl border border-border bg-surface/60 p-3 space-y-1.5">
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted uppercase tracking-wide">
+                  <Clock size={12} className="text-amber-500" />
                   Deadline
                 </div>
-                <p className="text-sm font-medium">Rolling / Open</p>
+                <p className="text-sm font-semibold">Rolling / Open</p>
               </div>
             )}
-            <div className="space-y-1">
-              <div className="flex items-center gap-1.5 text-xs text-muted">
-                <Tag size={12} />
+            <div className="rounded-xl border border-border bg-surface/60 p-3 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted uppercase tracking-wide">
+                <Tag size={12} className="text-purple-500" />
                 Source
               </div>
-              <p className="text-sm font-medium">{opp.source}</p>
+              <p className="text-sm font-semibold">{opp.source}</p>
             </div>
           </div>
 
@@ -495,14 +505,24 @@ export default function OpportunityDetail({
                         audience: null,
                       });
                     }}
-                    className="w-full text-left bg-card border border-border rounded-lg p-3 hover:border-accent/40 hover:bg-surface/50 transition-colors"
+                    className="group/sim w-full text-left bg-card border border-border rounded-xl p-3 shadow-xs hover:border-accent/40 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
                   >
-                    <p className="text-sm font-medium line-clamp-1">{s.title}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium line-clamp-1">{s.title}</p>
+                      <ArrowRight
+                        size={13}
+                        className="text-muted shrink-0 opacity-0 -translate-x-1 group-hover/sim:opacity-100 group-hover/sim:translate-x-0 transition-all"
+                      />
+                    </div>
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted">
-                      {s.agency && <span>{s.agency}</span>}
-                      {s.fundingMax && <span>{formatCurrency(s.fundingMax)}</span>}
+                      {s.agency && <span className="line-clamp-1">{s.agency}</span>}
+                      {s.fundingMax && (
+                        <span className="tabular-nums shrink-0">
+                          {formatCurrency(s.fundingMax)}
+                        </span>
+                      )}
                       {parseDeadline(s.deadline) && (
-                        <span>
+                        <span className="shrink-0">
                           Due {parseDeadline(s.deadline)!.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                         </span>
                       )}
@@ -530,7 +550,7 @@ export default function OpportunityDetail({
         </div>
 
         {/* Footer actions — 2x2 grid on mobile, single row on desktop */}
-        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 p-4 border-t border-border shrink-0 bg-card/50">
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 p-4 border-t border-border shrink-0 bg-card/80 backdrop-blur-sm shadow-[0_-1px_3px_rgba(15,23,42,0.04)]">
           <button
             onClick={() => (isSaved ? onUnsave(opp.id) : onSave(opp.id))}
             className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-150 ${
@@ -550,10 +570,13 @@ export default function OpportunityDetail({
           {onNextStep && (
             <button
               onClick={() => onNextStep(opp)}
-              className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-all duration-150 sm:ml-auto"
+              className="group/cta flex items-center justify-center gap-2 px-3 sm:px-5 py-2.5 bg-gradient-to-r from-accent to-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:shadow-md hover:brightness-105 transition-all duration-150 sm:ml-auto"
             >
               Start Application
-              <ArrowRight size={13} />
+              <ArrowRight
+                size={14}
+                className="group-hover/cta:translate-x-0.5 transition-transform"
+              />
             </button>
           )}
         </div>
