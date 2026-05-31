@@ -5,9 +5,66 @@ import {
   submissionPlans,
   applicationSections,
   applicationDocuments,
+  userProfiles,
+  personalProfiles,
 } from "@/lib/db";
 import { requireAuth, checkSubscription } from "@/lib/auth";
 import { eq, and, isNotNull } from "drizzle-orm";
+
+/** Structured profile fields the agent uses to fill identity/registration
+ *  form fields. Only non-empty values are sent. */
+function buildAgentProfile(
+  mode: string | null,
+  org: Record<string, unknown> | undefined,
+  personal: Record<string, unknown> | undefined
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  const add = (label: string, val: unknown) => {
+    if (val !== null && val !== undefined && String(val).trim() !== "") {
+      out[label] = String(val);
+    }
+  };
+
+  if (mode === "personal" && personal) {
+    add("Full Name", personal.fullName);
+    add("Email", personal.email);
+    add("Phone", personal.phone);
+    add("Date of Birth", personal.dateOfBirth);
+    add("Citizenship", personal.citizenship);
+    add("Address", personal.address);
+    add("City", personal.city);
+    add("State", personal.state);
+    add("ZIP", personal.zip);
+    add("Education Level", personal.educationLevel);
+    add("Field of Study", personal.fieldOfStudy);
+    add("Current School", personal.currentSchool);
+    add("Employment Status", personal.employmentStatus);
+    add("Veteran Status", personal.veteranStatus);
+    return out;
+  }
+
+  if (org) {
+    add("Organization Name", org.orgName);
+    add("Organization Type", org.orgType);
+    add("EIN", org.ein);
+    add("UEI", org.uei);
+    add("SAM.gov Registered", org.samRegistered ? "Yes" : "");
+    add("Address", org.address);
+    add("City", org.city);
+    add("State", org.state);
+    add("ZIP", org.zip);
+    add("Contact Name", org.contactName);
+    add("Contact Email", org.contactEmail);
+    add("Contact Phone", org.contactPhone);
+    add("Website", org.website);
+    add("NAICS Codes", org.naicsCodes);
+    add("Certifications", org.certifications);
+    add("Annual Revenue", org.annualRevenue);
+    add("Employee Count", org.employeeCount);
+    add("Year Founded", org.yearFounded);
+  }
+  return out;
+}
 
 const WORKER_URL = process.env.WORKER_URL || "http://localhost:3001";
 const WORKER_SECRET = process.env.WORKER_SECRET || "dev-secret";
@@ -115,6 +172,41 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // Steps the user already checked off — the agent should skip these.
+      let readySteps: number[] = [];
+      try {
+        const artifacts = JSON.parse(planRow.artifactsJson || "{}");
+        if (artifacts._steps_ready) {
+          const ready = JSON.parse(artifacts._steps_ready) as Record<
+            string,
+            boolean
+          >;
+          readySteps = Object.entries(ready)
+            .filter(([, v]) => v)
+            .map(([k]) => parseInt(k, 10))
+            .filter((n) => !Number.isNaN(n));
+        }
+      } catch {
+        // no ready-state — agent runs every step
+      }
+
+      // Structured profile so the agent can fill identity/registration fields.
+      const [orgProfile] = await db
+        .select()
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, userId))
+        .limit(1);
+      const [personalProfile] = await db
+        .select()
+        .from(personalProfiles)
+        .where(eq(personalProfiles.userId, userId))
+        .limit(1);
+      const agentProfile = buildAgentProfile(
+        app.mode,
+        orgProfile as unknown as Record<string, unknown>,
+        personalProfile as unknown as Record<string, unknown>
+      );
+
       // Update plan status
       await db
         .update(submissionPlans)
@@ -131,6 +223,8 @@ export async function POST(request: NextRequest) {
           application_content: applicationContent,
           pre_attached_files: preAttachedFiles,
           user_id: userId,
+          ready_steps: readySteps,
+          profile: agentProfile,
         }),
       });
       const data = await res.json();
