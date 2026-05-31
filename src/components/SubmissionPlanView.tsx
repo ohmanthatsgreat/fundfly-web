@@ -700,6 +700,10 @@ export default function SubmissionPlanView({
   const submissionMethod = planData.submission_method || "portal";
   const isOnlineSubmission =
     submissionMethod === "portal" || submissionMethod === "mixed";
+  // The agent can be (re)started whenever it isn't actively running or already
+  // finished — i.e. pending, failed, or cancelled all allow a start/retry.
+  const canStartAgent = !isRunning && !isComplete && isOnlineSubmission;
+  const isRetry = isFailed || planStatus === "cancelled";
 
   return (
     <div className="space-y-6">
@@ -712,17 +716,17 @@ export default function SubmissionPlanView({
           &larr; Back to workspace
         </button>
         <div className="flex items-center gap-2">
-          {planStatus === "pending" && isOnlineSubmission && (
+          {canStartAgent && (
             <button
               onClick={handleStartAgent}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm font-medium rounded-lg hover:opacity-90 transition-all duration-150"
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm font-medium rounded-lg shadow-sm hover:shadow-md hover:brightness-105 transition-all duration-150"
               title="Runs in the background on our servers — no visible browser window will open on your computer"
             >
               <Play size={14} />
-              Start Auto-Submission
+              {isRetry ? "Retry Auto-Submission" : "Start Auto-Submission"}
             </button>
           )}
-          {planStatus === "pending" && !isOnlineSubmission && (
+          {!isRunning && !isComplete && !isOnlineSubmission && (
             <button
               onClick={onBack}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent to-purple-500 text-white text-sm font-medium rounded-lg hover:opacity-90 transition-all duration-150"
@@ -744,6 +748,7 @@ export default function SubmissionPlanView({
             <button
               onClick={handleGeneratePlan}
               className="flex items-center gap-2 px-4 py-2 border border-border text-sm font-medium text-muted hover:text-foreground rounded-lg hover:bg-surface transition-all duration-150"
+              title="Re-run the AI research to rebuild the checklist from scratch"
             >
               <RotateCcw size={14} />
               Regenerate Plan
@@ -919,50 +924,67 @@ export default function SubmissionPlanView({
         </div>
       )}
 
-      {hasSections && !isRunning && !isComplete && planStatus === "pending" && (
-        <div className="flex items-start gap-2 text-sm text-emerald-700 dark:text-emerald-400 bg-emerald-50 border border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/20 rounded-xl px-4 py-3">
-          <CheckCircle size={16} className="shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <p className="font-medium">Application content is ready.</p>
-            <p className="text-xs mt-1 text-emerald-700/80 dark:text-emerald-300/80">
-              Click <strong>Start Auto-Submission</strong> above to begin.
-              The browser runs in the background on our servers — you
-              don&apos;t need to keep this tab open or watch for any popup.
-              You&apos;ll see live progress updates here, and we&apos;ll pause
-              for your approval before anything is submitted.
-            </p>
+      {hasSections && canStartAgent && (
+        <div className="bg-emerald-50 border border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/20 rounded-xl px-4 py-4">
+          <div className="flex items-start gap-2 text-sm text-emerald-700 dark:text-emerald-400">
+            <CheckCircle size={16} className="shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-medium">
+                {isRetry
+                  ? "Ready to try again."
+                  : "Everything's ready — let the agent take it from here."}
+              </p>
+              <p className="text-xs mt-1 text-emerald-700/80 dark:text-emerald-300/80">
+                {isRetry
+                  ? "Your last run didn't finish. You can restart the agent without rebuilding the checklist. "
+                  : ""}
+                The browser runs in the background on our servers — you
+                don&apos;t need to keep this tab open or watch for any popup.
+                You&apos;ll see live progress here, and we&apos;ll pause for
+                your approval before anything is submitted.
+              </p>
 
-            {/* Make the generated proposal a file the agent can upload */}
-            <div className="mt-3 pt-3 border-t border-emerald-200/60 dark:border-emerald-500/20">
-              {generatedAppAttached ? (
-                <p className="flex items-center gap-1.5 text-xs font-medium">
-                  <FileText size={13} className="shrink-0" />
-                  Generated application attached — the agent will upload it
-                  where a proposal is required.
-                </p>
-              ) : (
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={handleAttachGeneratedApp}
-                    disabled={attachingApp}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
-                  >
-                    {attachingApp ? (
-                      <Loader2 size={13} className="animate-spin" />
-                    ) : (
-                      <Paperclip size={13} />
-                    )}
-                    {attachingApp
-                      ? "Attaching…"
-                      : "Attach application for the agent to upload"}
-                  </button>
-                  <span className="text-[11px] text-emerald-700/70 dark:text-emerald-300/70">
-                    Adds your generated proposal as a DOCX the agent can submit.
-                  </span>
-                </div>
-              )}
+              {/* Make the generated proposal a file the agent can upload */}
+              <div className="mt-3 pt-3 border-t border-emerald-200/60 dark:border-emerald-500/20">
+                {generatedAppAttached ? (
+                  <p className="flex items-center gap-1.5 text-xs font-medium">
+                    <FileText size={13} className="shrink-0" />
+                    Generated application attached — the agent will upload it
+                    where a proposal is required.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={handleAttachGeneratedApp}
+                      disabled={attachingApp}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                    >
+                      {attachingApp ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : (
+                        <Paperclip size={13} />
+                      )}
+                      {attachingApp
+                        ? "Attaching…"
+                        : "Attach application for the agent to upload"}
+                    </button>
+                    <span className="text-[11px] text-emerald-700/70 dark:text-emerald-300/70">
+                      Adds your generated proposal as a DOCX the agent can submit.
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Prominent primary CTA so it's never missed */}
+          <button
+            onClick={handleStartAgent}
+            className="mt-4 w-full flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm font-semibold rounded-lg shadow-sm hover:shadow-md hover:brightness-105 transition-all duration-150"
+          >
+            <Play size={16} />
+            {isRetry ? "Retry Auto-Submission" : "Start Auto-Submission"}
+          </button>
         </div>
       )}
 
