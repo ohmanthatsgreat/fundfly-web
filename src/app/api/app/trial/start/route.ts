@@ -64,9 +64,14 @@ export async function POST(request: NextRequest) {
   const now = new Date();
   const endsAt = new Date(now.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
 
+  // The free trial unlocks ALL AI features regardless of which gate triggered
+  // it — store the top tier so PLAN_FEATURES grants matching + checklist +
+  // auto_submission. Abuse is bounded by the low trial cost cap (see auth.ts).
+  const trialPlan: Plan = "auto_submission";
+
   const [trial] = await db
     .insert(trials)
-    .values({ userId, plan, startedAt: now, endsAt })
+    .values({ userId, plan: trialPlan, startedAt: now, endsAt })
     .returning();
 
   return Response.json({ success: true, trial });

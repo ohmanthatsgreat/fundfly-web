@@ -52,6 +52,24 @@ function topPlanCapCents(plans: { plan: string }[]): number {
   return plans.reduce((max, p) => Math.max(max, planCapCents(p.plan)), 0);
 }
 
+/**
+ * Real AI-cost cap for a no-card trial. The trial unlocks ALL features, but a
+ * free (no-card) user shouldn't be able to burn a paid tier's full cap, so we
+ * cap trials low. $7.50 real ≈ $15 of display credit — enough to genuinely try
+ * matching + checklist + a generation/submission.
+ */
+const TRIAL_CAP_CENTS = 750;
+
+/** True when the user's only active access is a no-card trial (no paid sub). */
+function isTrialOnly(entries: { isTrial: boolean }[]): boolean {
+  return entries.length > 0 && entries.every((e) => e.isTrial);
+}
+
+/** Base real cap for a user: trial cap if trial-only, else top plan's cap. */
+function baseCapForEntries(entries: { plan: string; isTrial: boolean }[]): number {
+  return isTrialOnly(entries) ? TRIAL_CAP_CENTS : topPlanCapCents(entries);
+}
+
 /** Display-credit helpers for the usage meter (user sees 2× our real numbers). */
 export function toDisplayCents(realCents: number): number {
   return realCents * AI_MARKUP;
@@ -145,8 +163,8 @@ export async function getEffectiveAiCapCents(
   const entries = await getActivePlanEntries(userId);
   if (entries.length === 0) return null;
 
-  // Unified cap = highest active plan's cap + any purchased credit headroom.
-  const base = topPlanCapCents(entries);
+  // Unified cap = highest active plan's cap (or trial cap) + credit headroom.
+  const base = baseCapForEntries(entries);
   const credits = await db
     .select({ balanceCents: aiCredits.balanceCents })
     .from(aiCredits)
@@ -228,9 +246,10 @@ export async function checkSubscription(
   const periodStart = computePeriodStart(topEntry.periodEnd);
 
   // Unified prepaid-credits cap: ALL AI features share one monthly pool equal
-  // to the highest active plan's cap (50% of its display price), extended by
-  // any purchased credits. When real spend meets the cap, every feature gates.
-  const baseCap = topPlanCapCents(planEntries);
+  // to the highest active plan's cap (50% of its display price), or the trial
+  // cap for no-card trials, extended by any purchased credits. When real spend
+  // meets the cap, every feature gates.
+  const baseCap = baseCapForEntries(planEntries);
   const usageInfo = await getUsageInfo(userId, periodStart, baseCap);
   return {
     allowed: !usageInfo.atLimit,

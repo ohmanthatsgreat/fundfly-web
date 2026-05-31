@@ -184,10 +184,11 @@ export default function UpgradeModal({
               ) : (
                 <Gift className="w-4 h-4" />
               )}
-              Start your free 3-day trial of {triggeredPlan.name}
+              Start your free 3-day trial
             </button>
             <p className="mt-1.5 text-center text-[11px] text-muted">
-              No credit card required &middot; full access for 3 days
+              No credit card required &middot; unlocks every AI feature
+              (matching, checklist, generation &amp; auto-submission) for 3 days
             </p>
           </div>
         )}
