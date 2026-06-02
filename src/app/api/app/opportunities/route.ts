@@ -1,7 +1,31 @@
 import { NextRequest } from "next/server";
 import { db, opportunities, dismissedOpportunities } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
-import { sql, eq, and, or, ilike, inArray, gte, lte, asc, desc, notInArray, count } from "drizzle-orm";
+import { sql, eq, and, or, ilike, inArray, gte, lte, asc, desc, notInArray, count, type SQL } from "drizzle-orm";
+
+/**
+ * Pagination total is a COUNT over the 200K+ opportunities table — the slow
+ * part of this endpoint. The count depends only on the filter set (NOT the
+ * page/offset), so we cache it keyed by the full count-affecting signature
+ * with a short TTL. Effect: only page 1 of a given filter computes the count;
+ * subsequent pages, category revisits, and repeated searches are instant.
+ * Counts only move every 4h (sync cron), so a few minutes of staleness is fine.
+ */
+const COUNT_TTL_MS = 5 * 60 * 1000;
+const countCache = new Map<string, { count: number; expires: number }>();
+
+async function getCachedCount(key: string, where: SQL | undefined): Promise<number> {
+  const hit = countCache.get(key);
+  if (hit && hit.expires > Date.now()) return hit.count;
+
+  const res = await db.select({ count: count() }).from(opportunities).where(where);
+  const total = res[0]?.count || 0;
+
+  // Bound memory: clear if the cache grows large (many distinct searches).
+  if (countCache.size > 500) countCache.clear();
+  countCache.set(key, { count: total, expires: Date.now() + COUNT_TTL_MS });
+  return total;
+}
 
 export async function GET(request: NextRequest) {
   const userId = await requireAuth();
@@ -58,6 +82,17 @@ export async function GET(request: NextRequest) {
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
+  // Cache key = everything that affects the COUNT (filters + this user's
+  // dismissed set), but NOT page/offset/sort (which don't change the total).
+  const countKey = JSON.stringify({
+    search,
+    type: typeFilter ?? null,
+    audience: audienceFilter ?? null,
+    fundingMin: fundingMin ?? null,
+    fundingMax: fundingMax ?? null,
+    dismissed: dismissedIds.slice().sort(),
+  });
+
   // Sort
   let orderBy;
   switch (sort) {
@@ -77,7 +112,7 @@ export async function GET(request: NextRequest) {
       orderBy = asc(opportunities.deadline);
   }
 
-  const [results, totalResult] = await Promise.all([
+  const [results, total] = await Promise.all([
     db
       .select()
       .from(opportunities)
@@ -85,12 +120,12 @@ export async function GET(request: NextRequest) {
       .orderBy(orderBy)
       .limit(limit)
       .offset(offset),
-    db.select({ count: count() }).from(opportunities).where(where),
+    getCachedCount(countKey, where),
   ]);
 
   return Response.json({
     opportunities: results,
-    total: totalResult[0]?.count || 0,
+    total,
     page,
     limit,
   });
