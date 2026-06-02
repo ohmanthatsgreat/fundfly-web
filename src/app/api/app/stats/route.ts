@@ -2,16 +2,36 @@ import { db, opportunities, savedOpportunities, applications, aiMatches } from "
 import { requireAuth } from "@/lib/auth";
 import { sql, eq, and, gte, inArray, count } from "drizzle-orm";
 
-export async function GET() {
-  const userId = await requireAuth();
+/**
+ * Global opportunity counts are identical for every user and only change when
+ * the sync cron runs (every 4h). They're the expensive part of this endpoint
+ * (filtered COUNTs over 200K+ rows), so we cache them in-process with a short
+ * TTL. This collapses "5 heavy counts on every page load for every user" down
+ * to "5 counts at most once per TTL per warm instance." Per-user counts stay
+ * live (they're tiny and indexed by userId).
+ */
+type GlobalCounts = {
+  total: number;
+  grants: number;
+  sbir: number;
+  personal: number;
+  closingSoon: number;
+};
 
-  // Calculate date 7 days from now for "closing soon"
+const GLOBAL_TTL_MS = 10 * 60 * 1000; // 10 minutes
+let globalCache: { data: GlobalCounts; expires: number } | null = null;
+
+async function getGlobalCounts(): Promise<GlobalCounts> {
+  if (globalCache && globalCache.expires > Date.now()) {
+    return globalCache.data;
+  }
+
   const now = new Date();
   const weekFromNow = new Date(now.getTime() + 7 * 86400000);
   const todayStr = now.toISOString().split("T")[0];
   const weekStr = weekFromNow.toISOString().split("T")[0];
 
-  const [totalResult, bizGrantsResult, sbirResult, personalResult, savedResult, appsResult, matchesResult, closingSoonResult] =
+  const [totalResult, bizGrantsResult, sbirResult, personalResult, closingSoonResult] =
     await Promise.all([
       // Total opportunities
       db.select({ count: count() }).from(opportunities),
@@ -35,21 +55,6 @@ export async function GET() {
         .select({ count: count() })
         .from(opportunities)
         .where(inArray(opportunities.audience, ["personal", "both"])),
-      // Saved count for this user
-      db
-        .select({ count: count() })
-        .from(savedOpportunities)
-        .where(eq(savedOpportunities.userId, userId)),
-      // Applications count for this user
-      db
-        .select({ count: count() })
-        .from(applications)
-        .where(eq(applications.userId, userId)),
-      // AI matches saved for this user (across all modes)
-      db
-        .select({ count: count() })
-        .from(aiMatches)
-        .where(eq(aiMatches.userId, userId)),
       // Closing within 7 days
       db
         .select({ count: count() })
@@ -62,14 +67,45 @@ export async function GET() {
         ),
     ]);
 
-  return Response.json({
+  const data: GlobalCounts = {
     total: totalResult[0]?.count || 0,
     grants: bizGrantsResult[0]?.count || 0,
     sbir: sbirResult[0]?.count || 0,
     personal: personalResult[0]?.count || 0,
+    closingSoon: closingSoonResult[0]?.count || 0,
+  };
+  globalCache = { data, expires: Date.now() + GLOBAL_TTL_MS };
+  return data;
+}
+
+export async function GET() {
+  const userId = await requireAuth();
+
+  // Global counts (cached) + per-user counts (live) in parallel.
+  const [global, savedResult, appsResult, matchesResult] = await Promise.all([
+    getGlobalCounts(),
+    db
+      .select({ count: count() })
+      .from(savedOpportunities)
+      .where(eq(savedOpportunities.userId, userId)),
+    db
+      .select({ count: count() })
+      .from(applications)
+      .where(eq(applications.userId, userId)),
+    db
+      .select({ count: count() })
+      .from(aiMatches)
+      .where(eq(aiMatches.userId, userId)),
+  ]);
+
+  return Response.json({
+    total: global.total,
+    grants: global.grants,
+    sbir: global.sbir,
+    personal: global.personal,
+    closingSoon: global.closingSoon,
     saved: savedResult[0]?.count || 0,
     applications: appsResult[0]?.count || 0,
     matches: matchesResult[0]?.count || 0,
-    closingSoon: closingSoonResult[0]?.count || 0,
   });
 }
