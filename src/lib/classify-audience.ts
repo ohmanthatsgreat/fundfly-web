@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import crypto from "node:crypto";
 import { db, opportunities } from "@/lib/db";
-import { eq, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { recordCallCost } from "@/lib/ai-cost";
 
 /**
@@ -129,6 +129,10 @@ export async function classifyAudienceForSource(
   // backlog instead of re-scanning the same already-classified head of the
   // table. Once the backlog is gone, rows rotate through for stale-content
   // re-checks via the JS hash compare below.
+  // Only classify OPEN opportunities. Matching/browse only ever surface
+  // status='open' rows, so classifying closed grants is pure wasted spend
+  // (this was quietly burning ~$0.1¢ × ~100k closed Zeffy grants). Closed
+  // rows keep their default audience ("both") but are never shown anyway.
   const rows = await db
     .select({
       id: opportunities.id,
@@ -138,7 +142,12 @@ export async function classifyAudienceForSource(
       hash: opportunities.audienceClassifiedHash,
     })
     .from(opportunities)
-    .where(eq(opportunities.source, source))
+    .where(
+      and(
+        eq(opportunities.source, source),
+        eq(opportunities.status, "open")
+      )
+    )
     .orderBy(sql`${opportunities.audienceClassifiedHash} nulls first`)
     .limit(options.limit ?? 1000);
 
