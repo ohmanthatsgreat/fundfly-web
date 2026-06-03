@@ -42,7 +42,15 @@ export async function GET(request: NextRequest) {
       and(eq(aiMatches.userId, userId), eq(aiMatches.matchMode, mode))
     )
     .orderBy(desc(aiMatches.score))
-    .limit(100);
+    .limit(500);
+
+  // True total number of saved matches for this mode (the list above is capped
+  // for render performance, so the UI needs the real count for its summary).
+  const [matchTotalRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(aiMatches)
+    .where(and(eq(aiMatches.userId, userId), eq(aiMatches.matchMode, mode)));
+  const matchTotal = matchTotalRow?.count ?? 0;
 
   // Hydrate the persisted scan cursor so the UI can resume "X of Y scanned"
   // and the Keep-Searching / Re-scan controls reflect real server state.
@@ -84,6 +92,7 @@ export async function GET(request: NextRequest) {
 
   return Response.json({
     matches: results,
+    matchTotal,
     scan: { totalScanned, totalAvailable, hasMore },
   });
 }

@@ -80,6 +80,9 @@ export default function MatchesPage() {
   // away and back no longer loses the place or replays the first batch.
   const [totalScanned, setTotalScanned] = useState(0);
   const [totalAvailable, setTotalAvailable] = useState(0);
+  // True total saved matches for this mode (the rendered list is capped, so
+  // the summary count comes from this rather than matches.length).
+  const [matchTotal, setMatchTotal] = useState(0);
   // Cost (in cents) of the most recent scan batch, surfaced for transparency.
   const [lastScanCostCents, setLastScanCostCents] = useState<number | null>(null);
   // Set when the monthly AI cost cap for this tier has been reached.
@@ -166,6 +169,7 @@ export default function MatchesPage() {
       const res = await fetch(`/api/app/ai-matches?mode=${mode}`);
       const data = await res.json();
       setMatches(data.matches || []);
+      setMatchTotal(data.matchTotal ?? (data.matches?.length || 0));
       // Hydrate scan progress from the server so "X of Y scanned" and the
       // Keep-Searching control survive navigation.
       if (data.scan) {
@@ -545,10 +549,16 @@ export default function MatchesPage() {
           <div className="flex items-center justify-between mb-4 pb-3 border-b border-border gap-3">
             <div className="min-w-0">
               <p className="text-sm">
-                <span className="font-semibold">{matches.length}</span>{" "}
+                <span className="font-semibold">{matchTotal}</span>{" "}
                 <span className="text-muted">
-                  {matches.length === 1 ? "match" : "matches"}
+                  {matchTotal === 1 ? "match" : "matches"}
                 </span>
+                {matchTotal > matches.length && (
+                  <span className="text-muted">
+                    {" "}
+                    (showing top {matches.length})
+                  </span>
+                )}
                 {totalScanned > 0 && (
                   <>
                     <span className="text-muted"> from </span>
