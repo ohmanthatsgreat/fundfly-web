@@ -1,8 +1,30 @@
 import Anthropic from "@anthropic-ai/sdk";
 import crypto from "node:crypto";
-import { db, opportunities } from "@/lib/db";
+import { db, opportunities, userSettings } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
 import { recordCallCost } from "@/lib/ai-cost";
+
+/**
+ * Global admin pause switch for audience classification, stored as a system
+ * setting. DEFAULT = OFF (paused) so we don't spend on classification during
+ * early stage — an admin flips it on (admin panel) once there's traffic.
+ */
+const SYSTEM_USER = "__system__";
+export const CLASSIFY_FLAG_KEY = "ai_classify_enabled";
+
+export async function isAiClassifyEnabled(): Promise<boolean> {
+  const rows = await db
+    .select({ value: userSettings.value })
+    .from(userSettings)
+    .where(
+      and(
+        eq(userSettings.userId, SYSTEM_USER),
+        eq(userSettings.key, CLASSIFY_FLAG_KEY)
+      )
+    )
+    .limit(1);
+  return rows.length > 0 && rows[0].value === "true";
+}
 
 /**
  * AI-classify the audience of an opportunity as "business" | "personal" | "both".
@@ -121,6 +143,11 @@ export async function classifyAudienceForSource(
   source: string,
   options: { limit?: number } = {}
 ): Promise<{ classified: number; skipped: number }> {
+  // Respect the global pause switch — no classification spend while OFF.
+  if (!(await isAiClassifyEnabled())) {
+    return { classified: 0, skipped: 0 };
+  }
+
   // Find candidates: rows in this source that haven't been classified yet,
   // OR whose content has changed since last classification.
   // We compute the hash in JS and compare client-side — cheaper than a SQL

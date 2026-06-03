@@ -484,6 +484,8 @@ export default function AdminPage() {
   );
   const [stripeBypass, setStripeBypass] = useState(false);
   const [bypassLoading, setBypassLoading] = useState(true);
+  const [classifyEnabled, setClassifyEnabled] = useState(false);
+  const [classifyLoading, setClassifyLoading] = useState(true);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState<{
     totalClerk: number;
@@ -527,12 +529,27 @@ export default function AdminPage() {
       .then((d) => setStripeBypass(d.enabled))
       .catch(() => {})
       .finally(() => setBypassLoading(false));
+    fetch("/api/admin/ai-classify-toggle")
+      .then((r) => r.json())
+      .then((d) => setClassifyEnabled(d.enabled))
+      .catch(() => {})
+      .finally(() => setClassifyLoading(false));
   }, [loadData]);
 
   async function toggleStripeBypass() {
     const next = !stripeBypass;
     setStripeBypass(next);
     await fetch("/api/admin/stripe-bypass", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: next }),
+    });
+  }
+
+  async function toggleClassify() {
+    const next = !classifyEnabled;
+    setClassifyEnabled(next);
+    await fetch("/api/admin/ai-classify-toggle", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ enabled: next }),
@@ -678,6 +695,39 @@ export default function AdminPage() {
             <span
               className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
                 stripeBypass ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+      )}
+
+      {/* AI audience classification pause switch */}
+      {!classifyLoading && (
+        <div className="bg-card border border-border rounded-xl p-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+              <Brain className="w-4 h-4 text-blue-600" />
+            </div>
+            <div>
+              <div className="text-sm font-medium">
+                AI Audience Classification
+              </div>
+              <div className="text-xs text-muted">
+                {classifyEnabled
+                  ? "ON — new open grants get auto-tagged business/personal/both during sync."
+                  : "PAUSED — saving AI spend. New grants stay tagged “both” until you turn this on."}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={toggleClassify}
+            className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
+              classifyEnabled ? "bg-accent" : "bg-border"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
+                classifyEnabled ? "translate-x-5" : "translate-x-0"
               }`}
             />
           </button>
