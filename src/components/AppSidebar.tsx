@@ -210,10 +210,15 @@ export default function AppSidebar({ onNavigate }: { onNavigate?: () => void }) 
     >
       {/* Logo */}
       <div className="flex items-center justify-between h-16 px-4 border-b border-border">
-        <Link href="/app" className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center shrink-0">
-            <span className="text-white font-bold text-sm">FF</span>
-          </div>
+        <Link href="/app" className="flex items-center gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.png"
+            alt="FundFly"
+            className="h-8 w-auto shrink-0"
+            width={48}
+            height={32}
+          />
           {!collapsed && (
             <span className="font-semibold text-base tracking-tight">
               FundFly

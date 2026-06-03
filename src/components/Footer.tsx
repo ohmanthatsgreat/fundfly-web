@@ -6,10 +6,9 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-6 py-16">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
           <div>
-            <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-                <span className="text-white font-bold text-sm">FF</span>
-              </div>
+            <div className="flex items-center gap-2 mb-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="FundFly" className="h-8 w-auto" width={48} height={32} />
               <span className="font-semibold text-lg">FundFly</span>
             </div>
             <p className="text-sm text-muted leading-relaxed">

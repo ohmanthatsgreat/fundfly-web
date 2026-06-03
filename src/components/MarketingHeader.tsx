@@ -12,10 +12,15 @@ export default function MarketingHeader() {
   return (
     <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
       <div className="max-w-7xl mx-auto flex items-center justify-between h-16 px-6">
-        <Link href="/" className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-            <span className="text-white font-bold text-sm">FF</span>
-          </div>
+        <Link href="/" className="flex items-center gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.png"
+            alt="FundFly"
+            className="h-8 w-auto"
+            width={48}
+            height={32}
+          />
           <span className="font-semibold text-lg tracking-tight">FundFly</span>
         </Link>
 

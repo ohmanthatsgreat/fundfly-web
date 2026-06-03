@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "FundFly | AI Grant Finder for Businesses & Individuals",
+    default: "FundFly | AI Grant Discovery & Auto-Submission",
     template: "%s | FundFly",
   },
   description:
@@ -47,9 +47,9 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: "https://fundfly.app",
     siteName: "FundFly",
-    title: "FundFly | AI Grant Finder for Businesses & Individuals",
+    title: "FundFly | AI Grant Discovery & Auto-Submission",
     description:
-      "Find and apply to grants, SBIR funding, and foundation programs. AI-powered matching scores every opportunity against your profile.",
+      "AI grant discovery, application intelligence & auto-submission. FundFly finds the grants you qualify for, drafts winning applications, and auto-submits them through government portals — for nonprofits, businesses, and individuals.",
     images: [
       {
         url: "/opengraph-image",
@@ -61,9 +61,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "FundFly | AI Grant Finder for Businesses & Individuals",
+    title: "FundFly | AI Grant Discovery & Auto-Submission",
     description:
-      "Find and apply to grants, SBIR funding, and foundation programs. AI-powered matching scores every opportunity against your profile.",
+      "AI grant discovery, application intelligence & auto-submission. FundFly finds the grants you qualify for, drafts winning applications, and auto-submits them through government portals — for nonprofits, businesses, and individuals.",
     images: ["/opengraph-image"],
   },
   robots: {
@@ -91,9 +91,9 @@ const organizationJsonLd = {
       "@id": "https://fundfly.app/#organization",
       name: "FundFly",
       url: "https://fundfly.app",
-      logo: "https://fundfly.app/opengraph-image",
+      logo: "https://fundfly.app/icon.png",
       description:
-        "AI-powered grant discovery and application platform. FundFly indexes over a million grants, SBIR/STTR programs, and foundation opportunities, scores each one against your profile, and helps you apply.",
+        "AI grant discovery, application intelligence & auto-submission. FundFly indexes over a million grants, SBIR/STTR programs, and foundation opportunities, scores each against your profile, drafts applications, and auto-submits them through government portals.",
     },
     {
       "@type": "WebSite",
@@ -101,7 +101,7 @@ const organizationJsonLd = {
       url: "https://fundfly.app",
       name: "FundFly",
       description:
-        "Find and apply to grants, SBIR funding, and foundation programs. AI-powered matching scores every opportunity against your profile.",
+        "AI grant discovery, application intelligence & auto-submission. FundFly finds the grants you qualify for, drafts winning applications, and auto-submits them through government portals — for nonprofits, businesses, and individuals.",
       publisher: { "@id": "https://fundfly.app/#organization" },
       inLanguage: "en-US",
     },
