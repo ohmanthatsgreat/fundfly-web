@@ -507,6 +507,12 @@ export default function SubmissionPlanView({
             }));
           }
           break;
+        case "waiting_step_failed":
+          setWaitingInfo({
+            type: "step_failed",
+            description: data.error,
+          });
+          break;
         case "waiting_login":
           if (data.step) {
             setStepStatuses((prev) => ({
@@ -1967,6 +1973,48 @@ function WaitingBlock({
             className="px-3 py-2 text-sm font-medium border border-border rounded-lg hover:bg-surface transition-colors"
           >
             Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (waitingInfo.type === "step_failed") {
+    return (
+      <div className="bg-red-50 border border-red-200 dark:bg-red-500/10 dark:border-red-500/20 rounded-xl p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <AlertTriangle size={18} className="text-red-600 dark:text-red-400" />
+          <h4 className="text-sm font-semibold text-red-900 dark:text-red-200">
+            This step didn&apos;t complete
+          </h4>
+        </div>
+        <p className="text-sm text-red-900/80 dark:text-red-200/80">
+          {waitingInfo.description || "The agent couldn't finish this step."}
+        </p>
+        <p className="text-xs text-red-900/70 dark:text-red-200/70">
+          Turn on <strong>Take control of the browser</strong> above to fix it
+          by hand if needed, then <strong>Retry</strong> — or{" "}
+          <strong>Skip</strong> to move on to the next step.
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onResume({ step_action: "retry" })}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent to-purple-500 text-white text-sm font-medium rounded-lg hover:opacity-90 transition-all"
+          >
+            <RotateCcw size={14} />
+            Retry step
+          </button>
+          <button
+            onClick={() => onResume({ step_action: "skip" })}
+            className="px-3 py-2 text-sm font-medium border border-border rounded-lg hover:bg-surface transition-colors"
+          >
+            Skip step
+          </button>
+          <button
+            onClick={onCancel}
+            className="px-3 py-2 text-sm font-medium text-muted hover:text-foreground transition-colors"
+          >
+            Stop
           </button>
         </div>
       </div>
