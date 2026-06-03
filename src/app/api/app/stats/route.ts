@@ -1,6 +1,16 @@
 import { db, opportunities, savedOpportunities, applications, aiMatches } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
-import { sql, eq, and, gte, inArray, count } from "drizzle-orm";
+import { sql, eq, and, gte, inArray, count, or, isNull, ne } from "drizzle-orm";
+
+/**
+ * Catalog counts must match what the browse pages actually show, which hide
+ * closed/expired grants by default. So every global count excludes
+ * status='closed' (null status stays visible — same rule as the list route).
+ */
+const openOnly = or(
+  isNull(opportunities.status),
+  ne(opportunities.status, "closed")
+);
 
 /**
  * Global opportunity counts are identical for every user and only change when
@@ -33,8 +43,8 @@ async function getGlobalCounts(): Promise<GlobalCounts> {
 
   const [totalResult, bizGrantsResult, sbirResult, personalResult, closingSoonResult] =
     await Promise.all([
-      // Total opportunities
-      db.select({ count: count() }).from(opportunities),
+      // Total opportunities (open only)
+      db.select({ count: count() }).from(opportunities).where(openOnly),
       // Business grants: type grant + audience business/both
       db
         .select({ count: count() })
@@ -42,19 +52,22 @@ async function getGlobalCounts(): Promise<GlobalCounts> {
         .where(
           and(
             inArray(opportunities.type, ["grant", "foundation", "scholarship"]),
-            inArray(opportunities.audience, ["business", "both"])
+            inArray(opportunities.audience, ["business", "both"]),
+            openOnly
           )
         ),
       // SBIR/STTR count
       db
         .select({ count: count() })
         .from(opportunities)
-        .where(inArray(opportunities.type, ["sbir", "sttr"])),
+        .where(and(inArray(opportunities.type, ["sbir", "sttr"]), openOnly)),
       // Personal grants: audience personal/both
       db
         .select({ count: count() })
         .from(opportunities)
-        .where(inArray(opportunities.audience, ["personal", "both"])),
+        .where(
+          and(inArray(opportunities.audience, ["personal", "both"]), openOnly)
+        ),
       // Closing within 7 days
       db
         .select({ count: count() })
@@ -62,7 +75,8 @@ async function getGlobalCounts(): Promise<GlobalCounts> {
         .where(
           and(
             gte(opportunities.deadline, todayStr),
-            sql`${opportunities.deadline} <= ${weekStr}`
+            sql`${opportunities.deadline} <= ${weekStr}`,
+            openOnly
           )
         ),
     ]);
