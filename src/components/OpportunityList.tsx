@@ -41,6 +41,9 @@ export default function OpportunityList({
   const [agencyFilter, setAgencyFilter] = useState("");
   const [minFunding, setMinFunding] = useState("");
   const [maxFunding, setMaxFunding] = useState("");
+  // Show closed/expired grants — per-user preference (persisted server-side).
+  const [showClosed, setShowClosed] = useState(false);
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
 
   // Debounced mirror of the text inputs. Fetches fire once the user pauses
   // (350ms) instead of on every keystroke; sort and pagination stay instant.
@@ -67,6 +70,7 @@ export default function OpportunityList({
       limit: String(limit),
       sort,
       ...stableFilters,
+      ...(showClosed ? { includeClosed: "true" } : {}),
       ...(query.search ? { search: query.search } : {}),
       ...(query.agency ? { search: query.agency } : {}),
       ...(query.minFunding ? { fundingMin: query.minFunding } : {}),
@@ -87,7 +91,7 @@ export default function OpportunityList({
       setOpportunities([]);
     }
     setLoading(false);
-  }, [endpoint, page, sort, query, stableFilters]);
+  }, [endpoint, page, sort, query, stableFilters, showClosed]);
 
   const fetchSaved = useCallback(async () => {
     try {
@@ -111,6 +115,31 @@ export default function OpportunityList({
     } catch {}
   }, []);
 
+  // Load the per-user "show closed" preference once, then mark loaded so the
+  // first fetch reflects it (and we don't double-fetch before it's known).
+  useEffect(() => {
+    fetch("/api/app/prefs")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.prefs?.show_closed_opps === "true") setShowClosed(true);
+      })
+      .catch(() => {})
+      .finally(() => setPrefsLoaded(true));
+  }, []);
+
+  const toggleShowClosed = useCallback(() => {
+    setShowClosed((prev) => {
+      const next = !prev;
+      setPage(1);
+      fetch("/api/app/prefs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "show_closed_opps", value: String(next) }),
+      }).catch(() => {});
+      return next;
+    });
+  }, []);
+
   // Debounce text inputs into `query` (which drives the fetch). Skip the
   // initial mount so we don't double-fetch before the user has typed anything.
   useEffect(() => {
@@ -126,8 +155,9 @@ export default function OpportunityList({
   }, [search, agencyFilter, minFunding, maxFunding]);
 
   useEffect(() => {
+    if (!prefsLoaded) return; // wait for the show-closed pref so we fetch once
     fetchOpportunities();
-  }, [fetchOpportunities]);
+  }, [fetchOpportunities, prefsLoaded]);
 
   useEffect(() => {
     fetchSaved();
@@ -299,6 +329,23 @@ export default function OpportunityList({
                 Clear
               </button>
             )}
+
+            {/* Show closed/expired grants — per-user, persisted */}
+            <label className="w-full flex items-center gap-2 pt-3 mt-1 border-t border-border cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showClosed}
+                onChange={toggleShowClosed}
+                className="w-4 h-4 rounded border-border text-accent focus:ring-accent/20 accent-accent"
+              />
+              <span className="text-sm text-foreground/80">
+                Show closed / expired grants
+              </span>
+              <span className="text-xs text-muted">
+                (hidden by default — useful for researching grants that recur
+                each year)
+              </span>
+            </label>
           </div>
         )}
       </div>

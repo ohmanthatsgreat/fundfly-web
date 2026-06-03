@@ -40,6 +40,8 @@ export async function GET(request: NextRequest) {
   const audienceFilter = params.get("audience")?.split(",").filter(Boolean);
   const fundingMin = params.get("fundingMin");
   const fundingMax = params.get("fundingMax");
+  // Default: hide closed/expired grants. Users can opt in via their setting.
+  const includeClosed = params.get("includeClosed") === "true";
 
   // Get dismissed IDs for this user
   const dismissed = await db
@@ -80,6 +82,17 @@ export async function GET(request: NextRequest) {
     conditions.push(lte(opportunities.fundingMin, parseInt(fundingMax)));
   }
 
+  // Hide closed/expired by default. Keep null-status rows visible (only
+  // explicitly "closed" rows are filtered).
+  if (!includeClosed) {
+    conditions.push(
+      or(
+        sql`${opportunities.status} IS NULL`,
+        sql`${opportunities.status} <> 'closed'`
+      )
+    );
+  }
+
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
   // Cache key = everything that affects the COUNT (filters + this user's
@@ -90,6 +103,7 @@ export async function GET(request: NextRequest) {
     audience: audienceFilter ?? null,
     fundingMin: fundingMin ?? null,
     fundingMax: fundingMax ?? null,
+    includeClosed,
     dismissed: dismissedIds.slice().sort(),
   });
 

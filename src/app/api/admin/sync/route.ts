@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db, opportunities } from "@/lib/db";
 import { sql } from "drizzle-orm";
-import { syncZeffy, enrichZeffyGrants } from "@/lib/ingest-zeffy";
+import { syncZeffy } from "@/lib/ingest-zeffy";
 import { syncGrantsGov, syncSbirGov } from "@/lib/ingest-gov";
 
 // Zeffy deepening fans out into many Algolia queries + batched upserts; give
@@ -83,17 +83,14 @@ export async function POST(request: NextRequest) {
   // Contracts feature was removed pending a revisit. Re-enable syncSamGov here
   // and restore the matcher/tab when bringing contracts back.
 
+  // Manual button = fast data-pull only. The heavy AI audience-classify and
+  // the detail-page enrichment are skipped here (they made this request time
+  // out → the "Network error" you saw). The 4-hourly cron runs the full job
+  // including classify + enrich, so nothing is lost — just deferred.
   try {
-    results.zeffy = await syncZeffy();
+    results.zeffy = await syncZeffy({ classify: false });
   } catch (err) {
     results.errors.push(`Zeffy: ${String(err)}`);
-  }
-
-  // Enrich unenriched Zeffy grants (scrape detail pages)
-  try {
-    results.zeffyEnrichment = await enrichZeffyGrants(15);
-  } catch (err) {
-    results.errors.push(`Zeffy enrichment: ${String(err)}`);
   }
 
   // Get total count

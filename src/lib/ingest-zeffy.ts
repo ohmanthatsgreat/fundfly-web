@@ -426,13 +426,20 @@ const CLASSIFY_LIMIT = Number(process.env.ZEFFY_CLASSIFY_LIMIT) || 2000;
 
 // ─── Main sync function ────────────────────────────────────────────
 
-export async function syncZeffy(): Promise<{
+export async function syncZeffy(
+  opts: { classify?: boolean } = {}
+): Promise<{
   total: number;
   inserted: number;
   updated: number;
   categories: string[];
   classified: number;
 }> {
+  // The AI audience-classify step is heavy (many sequential Haiku calls) and
+  // is what makes a full sync slow enough to time out the manual admin button.
+  // Default ON (the cron wants it); the manual button passes classify:false so
+  // it returns fast — the cron picks up classification on its next run.
+  const doClassify = opts.classify !== false;
   let startIndex = await getSyncIndex();
   if (startIndex >= ALL_CATEGORIES.length) startIndex = 0;
 
@@ -478,14 +485,17 @@ export async function syncZeffy(): Promise<{
   const nextIndex = endIndex >= ALL_CATEGORIES.length ? 0 : endIndex;
   await setSyncIndex(nextIndex);
 
-  // AI-classify audience for any new or changed rows in this batch.
-  // Cached by content hash, so this is cheap on subsequent runs.
+  // AI-classify audience for any new or changed OPEN rows in this batch.
+  // Cached by content hash, so this is cheap on subsequent runs. Skipped when
+  // the caller opts out (manual admin sync) to keep that request fast.
   let classified = 0;
-  try {
-    const result = await classifyAudienceForSource("zeffy", { limit: CLASSIFY_LIMIT });
-    classified = result.classified;
-  } catch (err) {
-    console.error("Zeffy audience classification failed:", err);
+  if (doClassify) {
+    try {
+      const result = await classifyAudienceForSource("zeffy", { limit: CLASSIFY_LIMIT });
+      classified = result.classified;
+    } catch (err) {
+      console.error("Zeffy audience classification failed:", err);
+    }
   }
 
   return {
