@@ -10,7 +10,17 @@ import {
   Zap,
   AlertTriangle,
   ArrowRight,
+  Plus,
+  CheckCircle2,
 } from "lucide-react";
+
+// Mirror of CREDIT_PACKS in lib/stripe.ts (kept inline so this client
+// component doesn't import the server-only Stripe SDK). ids must match.
+const CREDIT_PACKS = [
+  { id: "credit_25", label: "$25" },
+  { id: "credit_50", label: "$50" },
+  { id: "credit_100", label: "$100" },
+] as const;
 
 type AiUsage = {
   costCents: number;
@@ -58,6 +68,39 @@ export default function SettingsPage() {
   const [usage, setUsage] = useState<AiUsage | null>(null);
   const [loading, setLoading] = useState(true);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [showPacks, setShowPacks] = useState(false);
+  const [buyingPack, setBuyingPack] = useState<string | null>(null);
+  const [creditSuccess, setCreditSuccess] = useState(false);
+
+  // Surface a confirmation when returning from a successful credit purchase.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("credit") === "success") {
+      setCreditSuccess(true);
+      // Clean the URL so a refresh doesn't re-show it.
+      window.history.replaceState({}, "", "/app/settings");
+    }
+  }, []);
+
+  async function buyCredit(pack: string) {
+    setBuyingPack(pack);
+    try {
+      const res = await fetch("/api/stripe/credit-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pack }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      alert(data.error || "Could not start checkout.");
+    } catch {
+      alert("Network error starting checkout.");
+    }
+    setBuyingPack(null);
+  }
 
   useEffect(() => {
     async function load() {
@@ -293,19 +336,71 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* Upgrade / top-up CTA — more prominent when at/near the cap */}
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <Link
-              href="/pricing"
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all ${
-                usage.atLimit || usage.atWarning
-                  ? "bg-gradient-to-r from-accent to-purple-500 text-white shadow-sm hover:shadow-md hover:brightness-105"
-                  : "border border-border text-foreground hover:border-accent/40 hover:bg-surface"
-              }`}
-            >
-              {usage.atLimit ? "Get more AI credit" : "Upgrade plan"}
-              <ArrowRight size={13} />
-            </Link>
+          {/* Credit purchase confirmation */}
+          {creditSuccess && (
+            <div className="mt-4 flex items-start gap-2 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-lg p-3 text-sm">
+              <CheckCircle2
+                size={16}
+                className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5"
+              />
+              <p className="text-emerald-900 dark:text-emerald-200">
+                Credit added! It may take a few seconds to reflect — refresh if
+                your balance hasn&apos;t updated.
+              </p>
+            </div>
+          )}
+
+          {/* Top-up CTA + pack picker */}
+          <div className="mt-4 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setShowPacks((s) => !s)}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all ${
+                  usage.atLimit || usage.atWarning
+                    ? "bg-gradient-to-r from-accent to-purple-500 text-white shadow-sm hover:shadow-md hover:brightness-105"
+                    : "border border-border text-foreground hover:border-accent/40 hover:bg-surface"
+                }`}
+              >
+                <Plus size={13} />
+                Get more AI credit
+              </button>
+              <Link
+                href="/pricing"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg border border-border text-foreground hover:border-accent/40 hover:bg-surface transition-all"
+              >
+                Upgrade plan
+                <ArrowRight size={13} />
+              </Link>
+            </div>
+
+            {showPacks && (
+              <div className="rounded-lg border border-border bg-surface/50 p-3">
+                <p className="text-xs text-muted mb-2.5">
+                  Add one-time AI credit to your account. It stacks on top of
+                  your monthly credit and never expires.
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  {CREDIT_PACKS.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => buyCredit(p.id)}
+                      disabled={buyingPack !== null}
+                      className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-border bg-card text-sm font-semibold hover:border-accent/50 hover:bg-surface transition-all disabled:opacity-50"
+                    >
+                      {buyingPack === p.id ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        p.label
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-muted mt-2">
+                  Secure checkout via Stripe. Credit is added automatically once
+                  payment completes.
+                </p>
+              </div>
+            )}
           </div>
 
           <p className="text-xs text-muted mt-3">

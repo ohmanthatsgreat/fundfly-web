@@ -74,7 +74,11 @@ function baseCapForEntries(entries: { plan: string; isTrial: boolean }[]): numbe
 export function toDisplayCents(realCents: number): number {
   return realCents * AI_MARKUP;
 }
-export { PLAN_DISPLAY_PRICE_CENTS };
+/** Real cost-cap headroom granted for a display-dollar credit purchase. */
+export function realCentsFromDisplay(displayCents: number): number {
+  return Math.round(displayCents / AI_MARKUP);
+}
+export { PLAN_DISPLAY_PRICE_CENTS, AI_MARKUP };
 
 export async function requireAuth() {
   const { userId } = await auth();

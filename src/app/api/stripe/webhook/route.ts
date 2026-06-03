@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { stripe, generateLicenseKey } from "@/lib/stripe";
-import { db, subscriptions, licenseKeys } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { db, subscriptions, licenseKeys, aiCredits, creditTopups } from "@/lib/db";
+import { eq, sql } from "drizzle-orm";
+import { realCentsFromDisplay } from "@/lib/auth";
 import Stripe from "stripe";
 
 /** In Stripe v22 / basil API, current_period_end moved to SubscriptionItem */
@@ -35,6 +36,52 @@ export async function POST(request: NextRequest) {
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
+
+      // ── AI credit top-up (one-time payment) ──────────────────────────────
+      // Branch FIRST: these sessions have no subscription, so they must not
+      // fall through to the subscription logic below.
+      if (session.metadata?.kind === "ai_credit_topup") {
+        const clerkUserId = session.metadata?.clerkUserId;
+        const displayCents = parseInt(session.metadata?.displayCents || "0", 10);
+        if (!clerkUserId || !displayCents) break;
+
+        // Only grant on a paid session.
+        if (session.payment_status !== "paid") break;
+
+        const realCents = realCentsFromDisplay(displayCents);
+
+        // Idempotency: the session id is UNIQUE in credit_topups. If this insert
+        // actually creates a row, it's the first time we've seen this session →
+        // grant the credit. A retried webhook hits the conflict → no-op.
+        const inserted = await db
+          .insert(creditTopups)
+          .values({
+            userId: clerkUserId,
+            sessionId: session.id,
+            displayCents,
+            realCents,
+          })
+          .onConflictDoNothing({ target: creditTopups.sessionId })
+          .returning({ id: creditTopups.id });
+
+        if (inserted.length > 0) {
+          await db
+            .insert(aiCredits)
+            .values({ userId: clerkUserId, balanceCents: realCents })
+            .onConflictDoUpdate({
+              target: aiCredits.userId,
+              set: {
+                balanceCents: sql`${aiCredits.balanceCents} + ${realCents}`,
+                updatedAt: new Date(),
+              },
+            });
+          console.log(
+            `[webhook] AI credit +${realCents}¢ real ($${(displayCents / 100).toFixed(0)} display) for ${clerkUserId} (session ${session.id})`
+          );
+        }
+        break;
+      }
+
       const plan = session.metadata?.plan;
       const customerId = session.metadata?.customerId;
 

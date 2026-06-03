@@ -396,6 +396,24 @@ export const aiCredits = pgTable(
 );
 
 /**
+ * Ledger of credit-pack purchases. `sessionId` (the Stripe Checkout Session id)
+ * is UNIQUE — it's the idempotency key so a retried webhook can't double-credit.
+ * displayCents = what the user paid; realCents = headroom added to the cap.
+ */
+export const creditTopups = pgTable(
+  "credit_topups",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    sessionId: text("session_id").notNull().unique(),
+    displayCents: integer("display_cents").notNull(),
+    realCents: integer("real_cents").notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (t) => [index("idx_credit_topups_user").on(t.userId)]
+);
+
+/**
  * Append-only per-call AI usage log. Unlike `ai_usage` (which is a per-period
  * aggregate used for the cap meter), this records one row per Claude API call
  * with the feature that triggered it and the raw token counts — so we can see
