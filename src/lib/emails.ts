@@ -234,6 +234,111 @@ export async function sendTrialEndingEmail(opts: {
   });
 }
 
+// ─── Lifecycle / re-engagement emails (broadcast stream) ────────────────────
+
+/** Nudge an account that signed up but never started an application. Once ever. */
+export async function sendInactiveNudgeEmail(opts: {
+  clerkUserId: string;
+  to: string;
+  name?: string | null;
+}) {
+  const firstName = (opts.name || "").trim().split(/\s+/)[0] || "there";
+  const html = renderEmail({
+    preheader: "Your funding matches are waiting.",
+    heading: `Still looking for funding, ${escapeText(firstName)}?`,
+    bodyHtml: `
+      <p style="margin:0 0 12px;">You created a FundFly account but haven't started an application yet — and there may already be grants matched to you.</p>
+      <p style="margin:0;">It takes about a minute: open your matches, pick one, and let FundFly draft the application for you.</p>`,
+    cta: { label: "See my matches", url: `${APP_URL}/app` },
+    footnote: "Not the right time? You can ignore this — we won't nudge again.",
+  });
+  return sendOnce({
+    kind: "inactive_nudge",
+    dedupKey: opts.clerkUserId,
+    clerkUserId: opts.clerkUserId,
+    to: opts.to,
+    subject: "Your grant matches are waiting on FundFly",
+    html,
+    replyTo: "support@fundfly.app",
+    stream: "broadcast",
+  });
+}
+
+/** Recover an abandoned checkout (started but not completed). Once per session. */
+export async function sendAbandonedCheckoutEmail(opts: {
+  clerkUserId: string;
+  to: string;
+  name?: string | null;
+  sessionId: string;
+  /** "subscription" | "credits" — tailors the copy. */
+  kind: "subscription" | "credits";
+}) {
+  const isSub = opts.kind === "subscription";
+  const html = renderEmail({
+    preheader: "You're one step away — finish when you're ready.",
+    heading: "Finish setting up your FundFly access",
+    bodyHtml: `
+      <p style="margin:0 0 12px;">Looks like you started ${
+        isSub ? "subscribing to a plan" : "adding credits"
+      } but didn't finish. No worries — your spot's still here.</p>
+      <p style="margin:0;">Pick up right where you left off whenever you're ready.</p>`,
+    cta: {
+      label: isSub ? "Finish subscribing" : "Finish adding credits",
+      url: `${APP_URL}/app/settings`,
+    },
+    footnote: "Questions about plans? Just reply — happy to help.",
+  });
+  return sendOnce({
+    kind: "abandoned_checkout",
+    dedupKey: `abandoned:${opts.sessionId}`,
+    clerkUserId: opts.clerkUserId,
+    to: opts.to,
+    subject: "You're one step away on FundFly",
+    html,
+    replyTo: "support@fundfly.app",
+    stream: "broadcast",
+  });
+}
+
+/** Weekly digest of new matches. dedupKey includes the ISO week → once/week. */
+export async function sendMatchDigestEmail(opts: {
+  clerkUserId: string;
+  to: string;
+  name?: string | null;
+  count: number;
+  samples: { title: string; agency?: string | null }[];
+  weekKey: string;
+}) {
+  const list = opts.samples
+    .slice(0, 5)
+    .map(
+      (s) =>
+        `<li style="margin-bottom:8px;"><strong>${escapeText(
+          s.title
+        )}</strong>${s.agency ? `<br><span style="color:#64748b;font-size:13px;">${escapeText(s.agency)}</span>` : ""}</li>`
+    )
+    .join("");
+  const html = renderEmail({
+    preheader: `${opts.count} new grant match${opts.count === 1 ? "" : "es"} this week.`,
+    heading: `${opts.count} new match${opts.count === 1 ? "" : "es"} for you`,
+    bodyHtml: `
+      <p style="margin:0 0 12px;">FundFly found new grants that fit your profile this week:</p>
+      <ul style="margin:0 0 8px;padding-left:20px;">${list}</ul>`,
+    cta: { label: "View all matches", url: `${APP_URL}/app` },
+    footnote: "We send this at most once a week.",
+  });
+  return sendOnce({
+    kind: "match_digest",
+    dedupKey: `digest:${opts.clerkUserId}:${opts.weekKey}`,
+    clerkUserId: opts.clerkUserId,
+    to: opts.to,
+    subject: `${opts.count} new grant match${opts.count === 1 ? "" : "es"} on FundFly`,
+    html,
+    replyTo: "support@fundfly.app",
+    stream: "broadcast",
+  });
+}
+
 function escapeText(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
