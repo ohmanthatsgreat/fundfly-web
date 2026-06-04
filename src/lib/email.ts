@@ -38,6 +38,8 @@ type SendEmailArgs = {
   stream?: MessageStream;
   /** Postmark tag for analytics/segmentation (e.g. "welcome"). */
   tag?: string;
+  /** Extra RFC headers, e.g. In-Reply-To / References for threading. */
+  headers?: { Name: string; Value: string }[];
 };
 
 type SendResult =
@@ -74,6 +76,9 @@ export async function sendEmail(args: SendEmailArgs): Promise<SendResult> {
         MessageStream: args.stream || "outbound",
         ...(args.replyTo ? { ReplyTo: args.replyTo } : {}),
         ...(args.tag ? { Tag: args.tag } : {}),
+        ...(args.headers && args.headers.length
+          ? { Headers: args.headers }
+          : {}),
       }),
     });
 

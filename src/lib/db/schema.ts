@@ -53,6 +53,44 @@ export const emailEvents = pgTable(
   ]
 );
 
+/**
+ * Shared inbox for @fundfly.app mail, viewable/answerable in the admin panel.
+ * Holds BOTH directions so a conversation threads naturally:
+ *   - 'in'  rows come from the Postmark Inbound webhook
+ *   - 'out' rows are replies/new mail we send via Postmark outbound
+ * Grouped by `threadKey` (normalized subject + the external participant).
+ */
+export const mailboxMessages = pgTable(
+  "mailbox_messages",
+  {
+    id: serial("id").primaryKey(),
+    direction: text("direction").notNull(), // 'in' | 'out'
+    threadKey: text("thread_key").notNull(),
+    fromEmail: text("from_email").notNull(),
+    fromName: text("from_name"),
+    toEmail: text("to_email").notNull(),
+    subject: text("subject"),
+    textBody: text("text_body"),
+    htmlBody: text("html_body"),
+    // Postmark's reply-only text (quoted history stripped) — nicer to display.
+    strippedReply: text("stripped_reply"),
+    messageId: text("message_id"), // RFC Message-ID header (inbound) / generated (outbound)
+    inReplyTo: text("in_reply_to"),
+    providerId: text("provider_id"), // Postmark outbound MessageID
+    isRead: boolean("is_read").default(false).notNull(),
+    isArchived: boolean("is_archived").default(false).notNull(),
+    attachmentsCount: integer("attachments_count").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_mailbox_thread").on(t.threadKey),
+    index("idx_mailbox_created").on(t.createdAt),
+    // Dedup inbound retries (Postmark may POST twice). Outbound msgids are also
+    // unique; NULLs are allowed multiple times in Postgres unique indexes.
+    uniqueIndex("uq_mailbox_msgid").on(t.messageId),
+  ]
+);
+
 export const subscriptions = pgTable(
   "subscriptions",
   {

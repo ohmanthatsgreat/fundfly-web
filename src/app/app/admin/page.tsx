@@ -20,6 +20,7 @@ import {
   Key,
   Clock,
   DollarSign,
+  Inbox,
 } from "lucide-react";
 
 type AdminStats = {
@@ -666,6 +667,27 @@ export default function AdminPage() {
             <div className="text-sm font-medium group-hover:text-accent transition-colors">Blog Management</div>
             <div className="text-xs text-muted">
               Generate, edit, publish, and manage blog posts
+            </div>
+          </div>
+        </div>
+        <ChevronRight className="w-4 h-4 text-muted group-hover:text-accent transition-colors" />
+      </a>
+
+      {/* Mailbox Link — shared inbox for @fundfly.app mail */}
+      <a
+        href="/app/admin/mailbox"
+        className="bg-card border border-border rounded-xl p-5 flex items-center justify-between hover:border-accent/30 transition-colors group"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
+            <Inbox className="w-4 h-4 text-accent" />
+          </div>
+          <div>
+            <div className="text-sm font-medium group-hover:text-accent transition-colors">
+              Mailbox
+            </div>
+            <div className="text-xs text-muted">
+              Read and reply to @fundfly.app email (hello@, support@)
             </div>
           </div>
         </div>
