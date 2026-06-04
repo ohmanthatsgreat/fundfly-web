@@ -7,9 +7,26 @@ import {
   applicationDocuments,
   userProfiles,
   personalProfiles,
+  opportunities,
 } from "@/lib/db";
 import { requireAuth, checkSubscription } from "@/lib/auth";
 import { eq, and, isNotNull } from "drizzle-orm";
+
+/** Canonical direct URL for an opportunity so the agent navigates straight to
+ *  it instead of (failing to) search a portal. Grants.gov opportunities live on
+ *  simpler.grants.gov/opportunity/<numericId>. */
+function canonicalOpportunityUrl(opp: {
+  id: string;
+  source: string | null;
+  grantUrl: string | null;
+  sourceUrl: string | null;
+}): string | null {
+  if ((opp.source || "").toLowerCase().includes("grant")) {
+    const m = opp.id.match(/(\d{4,})/);
+    if (m) return `https://simpler.grants.gov/opportunity/${m[1]}`;
+  }
+  return opp.grantUrl || opp.sourceUrl || null;
+}
 
 /** Structured profile fields the agent uses to fill identity/registration
  *  form fields. Only non-empty values are sent. */
@@ -218,6 +235,15 @@ export async function POST(request: NextRequest) {
         personalProfile as unknown as Record<string, unknown>
       );
 
+      // Canonical opportunity URL so the agent goes straight to the listing
+      // instead of searching a portal (the simpler.grants.gov search trap).
+      const [opp] = await db
+        .select()
+        .from(opportunities)
+        .where(eq(opportunities.id, app.opportunityId))
+        .limit(1);
+      const opportunityUrl = opp ? canonicalOpportunityUrl(opp) : null;
+
       // Update plan status
       await db
         .update(submissionPlans)
@@ -236,6 +262,7 @@ export async function POST(request: NextRequest) {
           user_id: userId,
           ready_steps: readySteps,
           profile: agentProfile,
+          opportunity_url: opportunityUrl,
         }),
       });
       const data = await res.json();
