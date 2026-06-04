@@ -101,6 +101,10 @@ type PlanData = {
   estimated_total_time: string;
   portals_involved: string[];
   prerequisites_summary: string;
+  eligibility_assessment?: {
+    status: "likely_eligible" | "check_required" | "likely_ineligible";
+    summary: string;
+  } | null;
   submission_method?: "portal" | "email" | "mail" | "mixed";
   submission_email?: string | null;
   submission_mailing_address?: string | null;
@@ -1058,6 +1062,50 @@ export default function SubmissionPlanView({
           </div>
         </div>
       )}
+
+      {/* Eligibility verdict — surfaced upfront so the user knows before
+          spending time submitting (e.g. a small biz vs an academic-only grant). */}
+      {planData.eligibility_assessment &&
+        planData.eligibility_assessment.status !== "likely_eligible" && (
+          <div
+            className={`rounded-xl p-4 border flex items-start gap-3 ${
+              planData.eligibility_assessment.status === "likely_ineligible"
+                ? "bg-red-50 border-red-200 dark:bg-red-500/10 dark:border-red-500/20"
+                : "bg-amber-50 border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/20"
+            }`}
+          >
+            <AlertTriangle
+              size={18}
+              className={`shrink-0 mt-0.5 ${
+                planData.eligibility_assessment.status === "likely_ineligible"
+                  ? "text-red-600 dark:text-red-400"
+                  : "text-amber-600 dark:text-amber-400"
+              }`}
+            />
+            <div>
+              <h4
+                className={`text-sm font-semibold ${
+                  planData.eligibility_assessment.status === "likely_ineligible"
+                    ? "text-red-900 dark:text-red-200"
+                    : "text-amber-900 dark:text-amber-200"
+                }`}
+              >
+                {planData.eligibility_assessment.status === "likely_ineligible"
+                  ? "Eligibility concern — review before submitting"
+                  : "Eligibility — please verify"}
+              </h4>
+              <p
+                className={`text-sm mt-0.5 ${
+                  planData.eligibility_assessment.status === "likely_ineligible"
+                    ? "text-red-900/80 dark:text-red-200/80"
+                    : "text-amber-900/80 dark:text-amber-200/80"
+                }`}
+              >
+                {planData.eligibility_assessment.summary}
+              </p>
+            </div>
+          </div>
+        )}
 
       {/* Stage progress — makes the 3-step sequence explicit */}
       <StageStepper

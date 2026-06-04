@@ -17,6 +17,9 @@ type ProfileLike = {
   ein?: string | null;
   certifications?: string | null;
   naicsCodes?: string | null;
+  yearFounded?: string | null;
+  employeeCount?: string | null;
+  annualRevenue?: string | null;
 };
 
 type OppLike = {
@@ -50,6 +53,11 @@ export type SubmissionPlan = {
   estimated_total_time: string;
   portals_involved: string[];
   prerequisites_summary: string;
+  /** Upfront eligibility verdict for THIS applicant vs THIS opportunity. */
+  eligibility_assessment?: {
+    status: "likely_eligible" | "check_required" | "likely_ineligible";
+    summary: string;
+  } | null;
   /** Primary submission method — drives whether to launch agent or use DOCX export. */
   submission_method: SubmissionMethod;
   /** Recipient email address if submission_method is "email" (or "mixed" with email component). */
@@ -90,6 +98,12 @@ export async function researchSubmissionPlan(
     profileParts.push(`Certifications: ${profile.certifications}`);
   if (profile.naicsCodes)
     profileParts.push(`NAICS: ${profile.naicsCodes}`);
+  if (profile.yearFounded)
+    profileParts.push(`Year founded: ${profile.yearFounded}`);
+  if (profile.employeeCount)
+    profileParts.push(`Employees: ${profile.employeeCount}`);
+  if (profile.annualRevenue)
+    profileParts.push(`Annual revenue: ${profile.annualRevenue}`);
 
   const oppParts = [
     `Title: ${opportunity.title}`,
@@ -131,6 +145,7 @@ Based on the opportunity type, agency, and source portal, create a complete subm
 3. **Prerequisites**: SAM.gov registration, Grants.gov registration, agency-specific accounts, CCR reports
 4. **Artifacts that flow between portals**: Report IDs, confirmation numbers, registration certificates
 5. **Order of operations**: Which steps must complete before others can begin
+6. **ELIGIBILITY (assess this FIRST and up front)**: Compare the applicant's profile (org type, year founded, size/revenue, certifications) against who this opportunity is actually for. Flag mismatches the user should know BEFORE spending time submitting. Common ones: a for-profit small business applying to an academic/non-profit-only research grant (e.g. most NSF research programs require an accredited institution — a small for-profit LLC usually must use SBIR/STTR instead); a brand-new org with no track record applying to a program expecting demonstrated research capacity; missing a required certification (8(a), WOSB, HUBZone) or SAM.gov registration. Put your eligibility verdict in "eligibility_assessment".
 
 Return a JSON object with this structure:
 {
@@ -140,6 +155,10 @@ Return a JSON object with this structure:
   "estimated_total_time": "<time estimate>",
   "portals_involved": ["portal1.gov", "portal2.gov"],
   "prerequisites_summary": "<brief summary of what needs to happen first>",
+  "eligibility_assessment": {
+    "status": "likely_eligible" | "check_required" | "likely_ineligible",
+    "summary": "<1-2 sentences: is THIS applicant a fit for THIS opportunity, and if not, what to do instead (e.g. 'As a for-profit small business you likely cannot apply directly to this NSF research program — consider NSF SBIR/STTR.')>"
+  },
   "submission_method": "portal" | "email" | "mail" | "mixed",
   "submission_email": "<recipient email if method is email or mixed, else null>",
   "submission_mailing_address": "<full address if method is mail, else null>",
@@ -300,6 +319,7 @@ function normalizePlan(obj: unknown): SubmissionPlan | null {
       ? p.portals_involved
       : [],
     prerequisites_summary: p.prerequisites_summary ?? "",
+    eligibility_assessment: p.eligibility_assessment ?? null,
     submission_method: p.submission_method ?? "portal",
     submission_email: p.submission_email ?? null,
     submission_mailing_address: p.submission_mailing_address ?? null,
