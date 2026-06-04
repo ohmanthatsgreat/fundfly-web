@@ -279,12 +279,36 @@ function ApplicationsContent() {
                             {app.opportunityTitle ||
                               `Opportunity ${app.opportunityId}`}
                           </h4>
-                          <div className="flex items-center gap-2 mt-0.5">
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            <span
+                              className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${
+                                STATUS_COLORS[app.status] || STATUS_COLORS.draft
+                              }`}
+                            >
+                              {STATUS_LABELS[app.status] || app.status}
+                            </span>
                             {app.opportunityAgency && (
-                              <p className="text-xs text-muted">
+                              <span className="text-xs text-muted line-clamp-1">
                                 {app.opportunityAgency}
-                              </p>
+                              </span>
                             )}
+                            <span className="text-[11px] text-muted">
+                              · Started{" "}
+                              {new Date(app.createdAt).toLocaleDateString(
+                                "en-US",
+                                { month: "short", day: "numeric" }
+                              )}
+                            </span>
+                            {app.updatedAt &&
+                              app.updatedAt !== app.createdAt && (
+                                <span className="text-[11px] text-muted">
+                                  · Updated{" "}
+                                  {new Date(app.updatedAt).toLocaleDateString(
+                                    "en-US",
+                                    { month: "short", day: "numeric" }
+                                  )}
+                                </span>
+                              )}
                           </div>
                         </div>
                         {parseDeadline(app.opportunityDeadline) && (

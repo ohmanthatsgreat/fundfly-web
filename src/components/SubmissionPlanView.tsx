@@ -22,9 +22,62 @@ import {
   Upload,
   X,
   FileText,
+  Bell,
+  BellOff,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import UpgradeModal from "./UpgradeModal";
 import PortalCredentialsPanel from "./PortalCredentialsPanel";
+
+/** Two short beeps via Web Audio (no asset needed) to alert the user the
+ *  agent is waiting on them — works even when the tab is in the background. */
+function playAlertSound() {
+  try {
+    const Ctx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext;
+    const ctx = new Ctx();
+    const beep = (at: number, freq: number) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.type = "sine";
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, ctx.currentTime + at);
+      g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + at + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + at + 0.32);
+      o.start(ctx.currentTime + at);
+      o.stop(ctx.currentTime + at + 0.34);
+    };
+    beep(0, 880);
+    beep(0.4, 1100);
+  } catch {
+    // Audio may be blocked until a user gesture — non-fatal.
+  }
+}
+
+/** Fire a desktop notification (if permitted) + the alert sound. */
+function alertAgentNeedsYou(description: string, soundOn: boolean) {
+  if (soundOn) playAlertSound();
+  try {
+    if ("Notification" in window && Notification.permission === "granted") {
+      const n = new Notification("FundFly — the agent needs you", {
+        body: description || "Your input is required to continue the submission.",
+        icon: "/icon.png",
+        tag: "fundfly-agent",
+      });
+      n.onclick = () => {
+        window.focus();
+        n.close();
+      };
+    }
+  } catch {
+    // ignore
+  }
+}
 
 type SubmissionStep = {
   step_number: number;
@@ -137,9 +190,36 @@ export default function SubmissionPlanView({
     url?: string;
     description?: string;
   } | null>(null);
+  // Desktop notification + sound when the agent pauses for the user.
+  const [notifyEnabled, setNotifyEnabled] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const prevWaitingRef = useRef<string | null>(null);
   const [expandedSteps, setExpandedSteps] = useState<Set<number>>(
     new Set()
   );
+
+  // Fire an alert on the rising edge of "agent needs you" (waitingInfo goes
+  // from null → set), so the user is pinged even if they're in another tab.
+  useEffect(() => {
+    const now = waitingInfo?.type ?? null;
+    if (now && !prevWaitingRef.current && notifyEnabled) {
+      alertAgentNeedsYou(waitingInfo?.description || "", soundEnabled);
+    }
+    prevWaitingRef.current = now;
+  }, [waitingInfo, notifyEnabled, soundEnabled]);
+
+  const enableNotifications = useCallback(async () => {
+    if (!("Notification" in window)) {
+      setNotifyEnabled(true); // sound-only fallback
+      return;
+    }
+    if (Notification.permission === "granted") {
+      setNotifyEnabled(true);
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    setNotifyEnabled(perm === "granted" || true); // keep sound even if denied
+  }, []);
   const [artifacts, setArtifacts] = useState<Record<string, string>>({});
   const [discoveries, setDiscoveries] = useState<DiscoveredRequirement[]>(
     []
@@ -1180,19 +1260,55 @@ export default function SubmissionPlanView({
                       : "Agent activity"}
               </h4>
             </div>
-            {liveStep !== null && (
+            <div className="flex items-center gap-3">
+              {/* Notify-me toggle (desktop notification + sound) */}
               <button
-                onClick={() => {
-                  toggleStep(liveStep);
-                  document
-                    .getElementById(`step-${liveStep}`)
-                    ?.scrollIntoView({ behavior: "smooth", block: "center" });
-                }}
-                className="text-xs text-accent hover:underline"
+                onClick={() =>
+                  notifyEnabled ? setNotifyEnabled(false) : enableNotifications()
+                }
+                title={
+                  notifyEnabled
+                    ? "Alerts on — you'll be notified when the agent needs you"
+                    : "Get a desktop notification + sound when the agent needs you"
+                }
+                className={`flex items-center gap-1 text-xs transition-colors ${
+                  notifyEnabled
+                    ? "text-accent"
+                    : "text-muted hover:text-foreground"
+                }`}
               >
-                Jump to Step {liveStep} →
+                {notifyEnabled ? <Bell size={13} /> : <BellOff size={13} />}
+                <span className="hidden sm:inline">
+                  {notifyEnabled ? "Alerts on" : "Alert me"}
+                </span>
               </button>
-            )}
+              {notifyEnabled && (
+                <button
+                  onClick={() => setSoundEnabled((s) => !s)}
+                  title={soundEnabled ? "Sound on" : "Sound off"}
+                  className="text-muted hover:text-foreground transition-colors"
+                >
+                  {soundEnabled ? (
+                    <Volume2 size={13} />
+                  ) : (
+                    <VolumeX size={13} />
+                  )}
+                </button>
+              )}
+              {liveStep !== null && (
+                <button
+                  onClick={() => {
+                    toggleStep(liveStep);
+                    document
+                      .getElementById(`step-${liveStep}`)
+                      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  }}
+                  className="text-xs text-accent hover:underline"
+                >
+                  Jump to Step {liveStep} →
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Latest screenshot — what the headless browser currently sees.
