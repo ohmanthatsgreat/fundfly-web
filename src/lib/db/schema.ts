@@ -7,6 +7,7 @@ import {
   timestamp,
   real,
   unique,
+  uniqueIndex,
   index,
 } from "drizzle-orm/pg-core";
 
@@ -21,6 +22,36 @@ export const customers = pgTable("customers", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+/**
+ * Ledger of every product/lifecycle email we send. Powers idempotency:
+ * `(kind, dedupKey)` is unique, so a send is attempted at most once per logical
+ * event (welcome→clerkUserId, submission→applicationId, trial_ending→periodEnd,
+ * inactive_nudge→clerkUserId+step, etc.). sendOnce() inserts here first and
+ * treats a unique-violation as "already sent" — which also guards against races
+ * and webhook retries. Bulk/marketing kinds should use the Postmark broadcast
+ * stream; transactional kinds use the default outbound stream.
+ */
+export const emailEvents = pgTable(
+  "email_events",
+  {
+    id: serial("id").primaryKey(),
+    clerkUserId: text("clerk_user_id"),
+    toEmail: text("to_email").notNull(),
+    kind: text("kind").notNull(),
+    // Uniqueness scope for this kind (e.g. the clerk user id, application id,
+    // billing period end). Always set so the unique index can enforce once-only.
+    dedupKey: text("dedup_key").notNull(),
+    status: text("status").notNull().default("sent"), // 'sent' | 'failed'
+    providerId: text("provider_id"), // Postmark MessageID
+    error: text("error"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("uq_email_kind_dedup").on(t.kind, t.dedupKey),
+    index("idx_email_user").on(t.clerkUserId),
+  ]
+);
 
 export const subscriptions = pgTable(
   "subscriptions",

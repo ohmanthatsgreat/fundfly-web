@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { verifyWebhook } from "@clerk/nextjs/webhooks";
 import { getOrCreateCustomer } from "@/lib/auth";
+import { sendWelcomeEmail } from "@/lib/emails";
 
 /**
  * Clerk webhook receiver.
@@ -51,6 +52,22 @@ export async function POST(request: NextRequest) {
       console.log(
         `[clerk-webhook] ${evt.type}: synced ${userId} (${email}) to customers table`
       );
+
+      // Welcome email — only on first creation. sendOnce() dedups on the user
+      // id, so retries / a later user.updated never re-send. Non-blocking: an
+      // email failure must not 500 the webhook (Clerk would retry the sync).
+      if (evt.type === "user.created") {
+        try {
+          const r = await sendWelcomeEmail({ clerkUserId: userId, to: email, name });
+          console.log(
+            `[clerk-webhook] welcome email for ${userId}: ${
+              r.sent ? "sent" : `skipped (${r.reason})`
+            }`
+          );
+        } catch (e) {
+          console.error("[clerk-webhook] welcome email error:", e);
+        }
+      }
     }
 
     return Response.json({ ok: true });
