@@ -199,6 +199,56 @@ export default function SubmissionPlanView({
     [takeControl, sendInteraction]
   );
 
+  // Native wheel scroll inside the live view (debounced so we don't flood the
+  // worker with one round-trip per wheel tick).
+  const wheelAccum = useRef(0);
+  const wheelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleLiveWheel = useCallback(
+    (e: React.WheelEvent<HTMLImageElement>) => {
+      if (!takeControl) return;
+      e.preventDefault();
+      const rect = e.currentTarget.getBoundingClientRect();
+      wheelAccum.current += e.deltaY / Math.max(rect.height, 1);
+      if (wheelTimer.current) clearTimeout(wheelTimer.current);
+      wheelTimer.current = setTimeout(() => {
+        const dyPct = Math.max(-1, Math.min(1, wheelAccum.current));
+        wheelAccum.current = 0;
+        if (dyPct !== 0) sendInteraction({ kind: "scroll", dyPct });
+      }, 200);
+    },
+    [takeControl, sendInteraction]
+  );
+
+  // Native typing inside the live view: printable chars → type, control keys →
+  // key. Lets the user type directly into the agent's browser when in control.
+  const handleLiveKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLImageElement>) => {
+      if (!takeControl) return;
+      const controlKeys: Record<string, string> = {
+        Enter: "Enter",
+        Tab: "Tab",
+        Backspace: "Backspace",
+        Escape: "Escape",
+        ArrowUp: "ArrowUp",
+        ArrowDown: "ArrowDown",
+        ArrowLeft: "ArrowLeft",
+        ArrowRight: "ArrowRight",
+        Delete: "Delete",
+      };
+      if (controlKeys[e.key]) {
+        e.preventDefault();
+        sendInteraction({ kind: "key", key: controlKeys[e.key] });
+      } else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        sendInteraction({ kind: "type", text: e.key });
+      }
+    },
+    [takeControl, sendInteraction]
+  );
+
+  // Ref to the live agent panel so we can snap to it when the agent starts.
+  const livePanelRef = useRef<HTMLDivElement | null>(null);
+
   // Has the generated application been registered as an agent-uploadable doc?
   const generatedAppAttached = stepAttachments.some(
     (a) => a.source === "ai_generated" && a.artifactName === "Full Application"
@@ -272,6 +322,17 @@ export default function SubmissionPlanView({
       logsEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [agentLogs]);
+
+  // Snap the live agent panel into view when the agent starts running or pauses
+  // for the user — so they don't have to hunt/scroll for it.
+  useEffect(() => {
+    if (planStatus === "running" || waitingInfo) {
+      livePanelRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
+  }, [planStatus, waitingInfo]);
 
   // Persist discoveries as per-step notes so they survive after the run.
   // Merges live discoveries into the persisted map (dedup by text) and writes
@@ -1067,7 +1128,10 @@ export default function SubmissionPlanView({
           Persists after the run ends (while logs exist) so all browser
           activity stays in this single panel. */}
       {(isRunning || waitingInfo || agentLogs.length > 0) && (
-        <div className="bg-card border-2 border-accent/30 rounded-xl overflow-hidden shadow-sm">
+        <div
+          ref={livePanelRef}
+          className="bg-card border-2 border-accent/30 rounded-xl overflow-hidden shadow-sm scroll-mt-4"
+        >
           <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-accent/5">
             <div className="flex items-center gap-2">
               <span className="relative flex h-2.5 w-2.5">
@@ -1130,10 +1194,13 @@ export default function SubmissionPlanView({
               <img
                 src={`data:image/jpeg;base64,${liveScreenshot}`}
                 alt="What the agent currently sees"
+                tabIndex={takeControl ? 0 : -1}
                 onClick={handleLiveClick}
-                className={`w-full h-auto block ${
+                onWheel={handleLiveWheel}
+                onKeyDown={handleLiveKeyDown}
+                className={`w-full h-auto block outline-none ${
                   takeControl
-                    ? "cursor-crosshair ring-2 ring-inset ring-accent"
+                    ? "cursor-crosshair ring-2 ring-inset ring-accent focus:ring-4"
                     : ""
                 }`}
               />
@@ -1173,7 +1240,8 @@ export default function SubmissionPlanView({
                 </label>
                 {takeControl && (
                   <span className="text-[10px] text-muted">
-                    Click the page above · type below
+                    Click, scroll &amp; type right on the page (click it first to
+                    focus)
                   </span>
                 )}
               </div>
