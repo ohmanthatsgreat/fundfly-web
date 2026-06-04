@@ -35,14 +35,54 @@ export async function GET() {
   const data = (await res.json().catch(() => ({}))) as {
     ID?: number;
     Name?: string;
-    ServerLink?: string;
   };
 
-  // Return only non-secret identifying fields.
+  // Source of truth beneath the dashboard: list recent outbound messages for
+  // the token's server. If our sends really land here, they'll show up.
+  const msgsRes = await fetch(
+    "https://api.postmarkapp.com/messages/outbound?count=8&offset=0",
+    { headers: { Accept: "application/json", "X-Postmark-Server-Token": token } }
+  );
+  const msgs = (await msgsRes.json().catch(() => ({}))) as {
+    TotalCount?: number;
+    Messages?: {
+      Recipients?: string[];
+      Subject?: string;
+      Status?: string;
+      SubmittedAt?: string;
+    }[];
+  };
+
+  // Also do a live send and capture Postmark's RAW response, so we can see
+  // ErrorCode / Message / SubmittedAt exactly as Postmark reports them.
+  const sendRes = await fetch("https://api.postmarkapp.com/email", {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "X-Postmark-Server-Token": token,
+    },
+    body: JSON.stringify({
+      From: "hello@fundfly.app",
+      To: "test@blackhole.postmarkapp.com",
+      Subject: "FundFly diag send",
+      TextBody: "diagnostic",
+      MessageStream: "outbound",
+    }),
+  });
+  const sendRaw = await sendRes.json().catch(() => ({}));
+
   return Response.json({
-    httpStatus: res.status,
     serverId: data.ID ?? null,
     serverName: data.Name ?? null,
     tokenLast4: token.slice(-4),
+    outboundTotalCount: msgs.TotalCount ?? null,
+    recentMessages: (msgs.Messages ?? []).map((m) => ({
+      to: m.Recipients,
+      subject: m.Subject,
+      status: m.Status,
+      submittedAt: m.SubmittedAt,
+    })),
+    liveSend: { httpStatus: sendRes.status, raw: sendRaw },
   });
 }
