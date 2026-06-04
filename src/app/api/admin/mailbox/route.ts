@@ -129,7 +129,17 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const from = (body.from || DEFAULT_FROM_EMAIL).trim();
+  // We can only send FROM a verified address on our own domain. A reply's
+  // requested "from" may be the address the original mail was sent TO — which
+  // for inbound-test / forwarded mail can be something like
+  // ...@inbound.postmarkapp.com. Sending from that 422s, so sanitize: keep the
+  // requested from only if it's an @fundfly.app address, else use the default.
+  const requestedFrom = (body.from || DEFAULT_FROM_EMAIL).trim();
+  const requestedEmail =
+    requestedFrom.match(/<([^>]+)>/)?.[1] || requestedFrom;
+  const from = /@fundfly\.app$/i.test(requestedEmail)
+    ? requestedFrom
+    : DEFAULT_FROM_EMAIL;
   const fromEmail = from.match(/<([^>]+)>/)?.[1] || from;
   const threadKey = body.threadKey || threadKeyFor(subject, to);
 
