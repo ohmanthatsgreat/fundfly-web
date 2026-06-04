@@ -98,6 +98,142 @@ export async function sendSubmissionConfirmationEmail(opts: {
   });
 }
 
+// ─── Billing emails (Stripe-triggered) ──────────────────────────────────────
+
+const PLAN_LABELS: Record<string, string> = {
+  matching: "Matching",
+  checklist: "Checklist",
+  auto_submission: "Auto-Submission",
+  bundle: "Bundle",
+};
+const planLabel = (p?: string | null) =>
+  (p && PLAN_LABELS[p]) || "your plan";
+
+const usd = (cents: number) =>
+  `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
+
+/** Subscription started — receipt + what they unlocked. dedupKey = subscription id. */
+export async function sendSubscriptionReceiptEmail(opts: {
+  clerkUserId: string;
+  to: string;
+  name?: string | null;
+  plan: string;
+  subscriptionId: string;
+}) {
+  const html = renderEmail({
+    preheader: `Your ${planLabel(opts.plan)} plan is active.`,
+    heading: `You're on ${planLabel(opts.plan)} 🎉`,
+    bodyHtml: `
+      <p style="margin:0 0 12px;">Thanks for subscribing — your <strong>${escapeText(
+        planLabel(opts.plan)
+      )}</strong> plan is active and ready to use.</p>
+      <p style="margin:0;">Jump back in and put it to work on your next grant.</p>`,
+    cta: { label: "Open FundFly", url: `${APP_URL}/app` },
+    footnote: "Manage your plan anytime in Settings.",
+  });
+  return sendOnce({
+    kind: "subscription_receipt",
+    dedupKey: `sub:${opts.subscriptionId}`,
+    clerkUserId: opts.clerkUserId,
+    to: opts.to,
+    subject: `Your FundFly ${planLabel(opts.plan)} plan is active`,
+    html,
+    replyTo: "support@fundfly.app",
+  });
+}
+
+/** AI credit top-up receipt. dedupKey = checkout session id. */
+export async function sendCreditReceiptEmail(opts: {
+  clerkUserId: string;
+  to: string;
+  name?: string | null;
+  displayCents: number;
+  sessionId: string;
+}) {
+  const html = renderEmail({
+    preheader: `${usd(opts.displayCents)} in credits added.`,
+    heading: "Credits added ✅",
+    bodyHtml: `
+      <p style="margin:0 0 12px;">We've added <strong>${usd(
+        opts.displayCents
+      )}</strong> in AI credits to your account.</p>
+      <p style="margin:0;">They're ready to use on matching, checklists, and auto-submission.</p>`,
+    cta: { label: "Go to FundFly", url: `${APP_URL}/app` },
+    footnote: "Your balance is shown in Settings.",
+  });
+  return sendOnce({
+    kind: "credit_receipt",
+    dedupKey: `topup:${opts.sessionId}`,
+    clerkUserId: opts.clerkUserId,
+    to: opts.to,
+    subject: `Receipt: ${usd(opts.displayCents)} in FundFly credits`,
+    html,
+    replyTo: "support@fundfly.app",
+  });
+}
+
+/** Payment failed — prompt to update card. dedupKey = invoice id. */
+export async function sendPaymentFailedEmail(opts: {
+  clerkUserId: string;
+  to: string;
+  name?: string | null;
+  invoiceId: string;
+}) {
+  const html = renderEmail({
+    preheader: "We couldn't process your latest payment.",
+    heading: "Payment issue — action needed",
+    bodyHtml: `
+      <p style="margin:0 0 12px;">We weren't able to process your most recent FundFly payment, usually a card that expired or was declined.</p>
+      <p style="margin:0;">Update your payment method to keep your access uninterrupted.</p>`,
+    cta: { label: "Update payment method", url: `${APP_URL}/app/settings` },
+    footnote: "If you've already fixed this, you can ignore this email.",
+  });
+  return sendOnce({
+    kind: "payment_failed",
+    dedupKey: `invoice:${opts.invoiceId}`,
+    clerkUserId: opts.clerkUserId,
+    to: opts.to,
+    subject: "Action needed: your FundFly payment didn't go through",
+    html,
+    replyTo: "support@fundfly.app",
+  });
+}
+
+/** Trial ending soon. dedupKey = subscription id (one per trial). */
+export async function sendTrialEndingEmail(opts: {
+  clerkUserId: string;
+  to: string;
+  name?: string | null;
+  plan: string;
+  endsAt: Date;
+  subscriptionId: string;
+}) {
+  const when = opts.endsAt.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+  });
+  const html = renderEmail({
+    preheader: `Your free trial ends ${when}.`,
+    heading: "Your free trial ends soon",
+    bodyHtml: `
+      <p style="margin:0 0 12px;">Your FundFly <strong>${escapeText(
+        planLabel(opts.plan)
+      )}</strong> free trial ends on <strong>${escapeText(when)}</strong>. After that your plan continues and your card is charged.</p>
+      <p style="margin:0;">Loving it? No action needed. Need to change anything? Manage it in Settings.</p>`,
+    cta: { label: "Manage my plan", url: `${APP_URL}/app/settings` },
+    footnote: "You can cancel anytime before the trial ends.",
+  });
+  return sendOnce({
+    kind: "trial_ending",
+    dedupKey: `trial:${opts.subscriptionId}`,
+    clerkUserId: opts.clerkUserId,
+    to: opts.to,
+    subject: `Your FundFly trial ends ${when}`,
+    html,
+    replyTo: "support@fundfly.app",
+  });
+}
+
 function escapeText(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }

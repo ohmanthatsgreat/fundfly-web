@@ -1,9 +1,66 @@
 import { NextRequest } from "next/server";
 import { stripe, generateLicenseKey } from "@/lib/stripe";
-import { db, subscriptions, licenseKeys, aiCredits, creditTopups } from "@/lib/db";
+import {
+  db,
+  subscriptions,
+  licenseKeys,
+  aiCredits,
+  creditTopups,
+  customers,
+} from "@/lib/db";
 import { eq, sql } from "drizzle-orm";
 import { realCentsFromDisplay } from "@/lib/auth";
+import {
+  sendCreditReceiptEmail,
+  sendSubscriptionReceiptEmail,
+  sendPaymentFailedEmail,
+  sendTrialEndingEmail,
+} from "@/lib/emails";
 import Stripe from "stripe";
+
+type Recipient = { email: string; name: string | null; clerkUserId: string };
+
+async function recipientByClerkId(
+  clerkUserId: string
+): Promise<Recipient | null> {
+  const [c] = await db
+    .select({ email: customers.email, name: customers.name })
+    .from(customers)
+    .where(eq(customers.clerkUserId, clerkUserId))
+    .limit(1);
+  return c?.email ? { email: c.email, name: c.name, clerkUserId } : null;
+}
+
+async function recipientByCustomerId(
+  customerId: number
+): Promise<Recipient | null> {
+  const [c] = await db
+    .select({
+      email: customers.email,
+      name: customers.name,
+      clerkUserId: customers.clerkUserId,
+    })
+    .from(customers)
+    .where(eq(customers.id, customerId))
+    .limit(1);
+  return c?.email
+    ? { email: c.email, name: c.name, clerkUserId: c.clerkUserId }
+    : null;
+}
+
+/** Resolve our recipient + plan from a Stripe subscription id. */
+async function recipientBySubId(
+  stripeSubId: string
+): Promise<(Recipient & { plan: string }) | null> {
+  const [s] = await db
+    .select({ customerId: subscriptions.customerId, plan: subscriptions.plan })
+    .from(subscriptions)
+    .where(eq(subscriptions.stripeSubscriptionId, stripeSubId))
+    .limit(1);
+  if (!s) return null;
+  const r = await recipientByCustomerId(s.customerId);
+  return r ? { ...r, plan: s.plan } : null;
+}
 
 /** In Stripe v22 / basil API, current_period_end moved to SubscriptionItem */
 function getPeriodEnd(sub: Stripe.Subscription): Date {
@@ -78,6 +135,18 @@ export async function POST(request: NextRequest) {
           console.log(
             `[webhook] AI credit +${realCents}¢ real ($${(displayCents / 100).toFixed(0)} display) for ${clerkUserId} (session ${session.id})`
           );
+
+          // Receipt email (idempotent on the session id).
+          const r = await recipientByClerkId(clerkUserId);
+          if (r) {
+            await sendCreditReceiptEmail({
+              clerkUserId,
+              to: r.email,
+              name: r.name,
+              displayCents,
+              sessionId: session.id,
+            }).catch((e) => console.error("[webhook] credit email:", e));
+          }
         }
         break;
       }
@@ -106,6 +175,18 @@ export async function POST(request: NextRequest) {
         customerId: parseInt(customerId),
         plan,
       });
+
+      // Subscription receipt / welcome email (idempotent on subscription id).
+      const subRecipient = await recipientByCustomerId(parseInt(customerId));
+      if (subRecipient) {
+        await sendSubscriptionReceiptEmail({
+          clerkUserId: subRecipient.clerkUserId,
+          to: subRecipient.email,
+          name: subRecipient.name,
+          plan,
+          subscriptionId: stripeSubscription.id,
+        }).catch((e) => console.error("[webhook] sub email:", e));
+      }
 
       break;
     }
@@ -138,6 +219,36 @@ export async function POST(request: NextRequest) {
         .update(subscriptions)
         .set({ status: "past_due", updatedAt: new Date() })
         .where(eq(subscriptions.stripeSubscriptionId, subId));
+
+      // Nudge the user to fix their card (idempotent on invoice id).
+      const invoiceId = String(invoice.id || subId);
+      const r = await recipientBySubId(subId);
+      if (r) {
+        await sendPaymentFailedEmail({
+          clerkUserId: r.clerkUserId,
+          to: r.email,
+          name: r.name,
+          invoiceId,
+        }).catch((e) => console.error("[webhook] payment-failed email:", e));
+      }
+      break;
+    }
+
+    case "customer.subscription.trial_will_end": {
+      // Stripe fires this ~3 days before a trial ends (if the event is enabled
+      // on the webhook). Remind the user before the first charge.
+      const sub = event.data.object as Stripe.Subscription;
+      const r = await recipientBySubId(sub.id);
+      if (r && sub.trial_end) {
+        await sendTrialEndingEmail({
+          clerkUserId: r.clerkUserId,
+          to: r.email,
+          name: r.name,
+          plan: r.plan,
+          endsAt: new Date(sub.trial_end * 1000),
+          subscriptionId: sub.id,
+        }).catch((e) => console.error("[webhook] trial-ending email:", e));
+      }
       break;
     }
 
