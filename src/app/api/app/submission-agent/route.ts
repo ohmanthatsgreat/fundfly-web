@@ -267,6 +267,16 @@ export async function POST(request: NextRequest) {
       return Response.json(data);
     }
 
+    if (action === "pause") {
+      // User clicked Pause — the agent stops at its next checkpoint.
+      const res = await workerFetch("/agent/pause", {
+        method: "POST",
+        body: JSON.stringify({ plan_id }),
+      });
+      const data = await res.json();
+      return Response.json(data);
+    }
+
     if (action === "provide_uploads") {
       const res = await workerFetch("/agent/uploads", {
         method: "POST",

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Loader2,
   Play,
+  Pause,
   XCircle,
   CheckCircle,
   Circle,
@@ -157,6 +158,9 @@ export default function SubmissionPlanView({
   const [liveScreenshot, setLiveScreenshot] = useState<string | null>(null);
   const [liveStep, setLiveStep] = useState<number | null>(null);
   const [attachingApp, setAttachingApp] = useState(false);
+  // User-initiated pause (distinct from the input pauses in waitingInfo).
+  const [userPaused, setUserPaused] = useState(false);
+  const [pausePending, setPausePending] = useState(false);
   // Take-control (interactive browser): forward clicks/keys to the live page.
   const [takeControl, setTakeControl] = useState(false);
   const [typeText, setTypeText] = useState("");
@@ -494,6 +498,8 @@ export default function SubmissionPlanView({
     setLiveStep(null);
     setTakeControl(false);
     setTypeText("");
+    setUserPaused(false);
+    setPausePending(false);
 
     // Start the agent via our proxy
     const startRes = await fetch("/api/app/submission-agent", {
@@ -640,6 +646,11 @@ export default function SubmissionPlanView({
           // Auto-enable take-control so the user can act immediately.
           setTakeControl(true);
           break;
+        case "waiting_paused":
+          // User-requested pause took effect at a checkpoint.
+          setUserPaused(true);
+          setPausePending(false);
+          break;
         case "discovery":
           if (data.requirements) {
             setDiscoveries((prev) => {
@@ -675,6 +686,8 @@ export default function SubmissionPlanView({
   const handleResume = async (payload?: Record<string, unknown>) => {
     if (!planId) return;
     setWaitingInfo(null);
+    setUserPaused(false);
+    setPausePending(false);
     setTakeControl(false);
     setTypeText("");
     await fetch("/api/app/submission-agent", {
@@ -685,6 +698,16 @@ export default function SubmissionPlanView({
         plan_id: planId,
         resume_payload: payload,
       }),
+    });
+  };
+
+  const handlePause = async () => {
+    if (!planId) return;
+    setPausePending(true);
+    await fetch("/api/app/submission-agent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "pause", plan_id: planId }),
     });
   };
 
@@ -868,15 +891,8 @@ export default function SubmissionPlanView({
               Back to Workspace to Download
             </button>
           )}
-          {isRunning && !waitingInfo && (
-            <button
-              onClick={handleCancel}
-              className="flex items-center gap-2 px-4 py-2 bg-red-500/80 text-white text-sm font-medium rounded-lg hover:bg-red-500 transition-all duration-150"
-            >
-              <XCircle size={14} />
-              Cancel
-            </button>
-          )}
+          {/* Run controls (Pause / Resume / Cancel) now live below the live
+              browser window — see the control bar in the agent panel. */}
           {(isComplete || isFailed || planStatus === "cancelled") && (
             <button
               onClick={handleGeneratePlan}
@@ -1137,7 +1153,7 @@ export default function SubmissionPlanView({
               <span className="relative flex h-2.5 w-2.5">
                 <span
                   className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                    waitingInfo
+                    waitingInfo || userPaused
                       ? "bg-amber-400 animate-ping"
                       : isRunning
                         ? "bg-emerald-400 animate-ping"
@@ -1146,7 +1162,7 @@ export default function SubmissionPlanView({
                 />
                 <span
                   className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-                    waitingInfo
+                    waitingInfo || userPaused
                       ? "bg-amber-500"
                       : isRunning
                         ? "bg-emerald-500"
@@ -1157,9 +1173,11 @@ export default function SubmissionPlanView({
               <h4 className="text-sm font-semibold">
                 {waitingInfo
                   ? "Agent needs you"
-                  : isRunning
-                    ? "Agent working…"
-                    : "Agent activity"}
+                  : userPaused
+                    ? "Agent paused"
+                    : isRunning
+                      ? "Agent working…"
+                      : "Agent activity"}
               </h4>
             </div>
             {liveStep !== null && (
@@ -1224,9 +1242,54 @@ export default function SubmissionPlanView({
             </div>
           )}
 
-          {/* Take-control bar — available whenever the agent is paused. Lets a
-              human solve captchas / puzzles / anything the agent can't. */}
-          {waitingInfo && liveScreenshot && (
+          {/* Run controls — Pause / Resume / Cancel, right under the browser
+              window for easy reach during a run. */}
+          {(isRunning || userPaused) && (
+            <div className="px-4 py-2.5 border-t border-border flex items-center gap-2 bg-surface/30">
+              {userPaused ? (
+                <>
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    Paused
+                  </span>
+                  <button
+                    onClick={() => handleResume()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-accent text-white hover:bg-accent/90 transition-colors"
+                  >
+                    <Play size={13} /> Resume
+                  </button>
+                </>
+              ) : (
+                !waitingInfo && (
+                  <button
+                    onClick={handlePause}
+                    disabled={pausePending}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border hover:bg-card transition-colors disabled:opacity-60"
+                  >
+                    {pausePending ? (
+                      <>
+                        <Loader2 size={13} className="animate-spin" /> Pausing…
+                      </>
+                    ) : (
+                      <>
+                        <Pause size={13} /> Pause
+                      </>
+                    )}
+                  </button>
+                )
+              )}
+              <button
+                onClick={handleCancel}
+                className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-danger hover:bg-danger/10 transition-colors"
+              >
+                <XCircle size={13} /> Cancel
+              </button>
+            </div>
+          )}
+
+          {/* Take-control bar — available whenever the agent is paused (input
+              pause OR user pause). Lets a human solve captchas / drive the page. */}
+          {(waitingInfo || userPaused) && liveScreenshot && (
             <div className="px-4 py-3 border-t border-border space-y-2 bg-surface/40">
               <div className="flex items-center justify-between gap-2">
                 <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
