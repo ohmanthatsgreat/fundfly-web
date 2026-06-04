@@ -62,6 +62,13 @@ export type SubmissionPlan = {
   submission_method: SubmissionMethod;
   /** Recipient email address if submission_method is "email" (or "mixed" with email component). */
   submission_email: string | null;
+  /** A ready-to-send cover email the applicant can review + send from their own
+   *  inbox (Option B). Only populated for "email"/"mixed" submissions. The actual
+   *  application travels as the attached DOCX, so the body is a short cover note. */
+  submission_email_draft?: {
+    subject: string;
+    body: string;
+  } | null;
   /** Mailing address if submission_method is "mail". */
   submission_mailing_address: string | null;
   /** Human-readable note about delivery requirements. */
@@ -161,6 +168,10 @@ Return a JSON object with this structure:
   },
   "submission_method": "portal" | "email" | "mail" | "mixed",
   "submission_email": "<recipient email if method is email or mixed, else null>",
+  "submission_email_draft": {
+    "subject": "<concise subject line, e.g. 'Application: <opportunity title> — <applicant org name>'>",
+    "body": "<a short, professional cover email FROM the applicant TO the program officer. Reference the opportunity by name, state that the completed application is attached, and include a brief sign-off using the org name. Keep it ~4-6 sentences — the full proposal travels as the attachment, so do NOT restate the whole application. Use the applicant's org name from the profile; if a contact name is unknown, open with 'Dear Program Officer,'. Plain text, no markdown.>"
+  },
   "submission_mailing_address": "<full address if method is mail, else null>",
   "submission_notes": "<one-line note describing delivery requirements, e.g. 'PDF attached to program officer email by 5pm EST on deadline'>",
   "steps": [
@@ -182,7 +193,7 @@ Return a JSON object with this structure:
   "warnings": ["any important warnings about this submission"]
 }
 
-Be thorough and specific to this exact opportunity type and agency. Include ALL prerequisite steps. If submission is by email or mail, the steps should focus on preparing the application package — the user will deliver it manually using a DOCX export, NOT a browser agent.
+Be thorough and specific to this exact opportunity type and agency. Include ALL prerequisite steps. If submission is by email or mail, the steps should focus on preparing the application package — the user will deliver it manually using a DOCX export, NOT a browser agent. When submission_method is "email" or "mixed" AND a recipient email is known, ALWAYS fill in "submission_email_draft" with a ready-to-send cover email so the applicant can review it and send from their own inbox in one click (the application itself goes as the attached file).
 
 Return ONLY the JSON object.`,
       },
@@ -322,6 +333,7 @@ function normalizePlan(obj: unknown): SubmissionPlan | null {
     eligibility_assessment: p.eligibility_assessment ?? null,
     submission_method: p.submission_method ?? "portal",
     submission_email: p.submission_email ?? null,
+    submission_email_draft: p.submission_email_draft ?? null,
     submission_mailing_address: p.submission_mailing_address ?? null,
     submission_notes: p.submission_notes ?? null,
     steps,

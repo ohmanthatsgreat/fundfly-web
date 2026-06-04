@@ -26,6 +26,11 @@ import {
   BellOff,
   Volume2,
   VolumeX,
+  Mail,
+  Send,
+  ExternalLink,
+  Copy,
+  Check,
 } from "lucide-react";
 import UpgradeModal from "./UpgradeModal";
 import PortalCredentialsPanel from "./PortalCredentialsPanel";
@@ -107,6 +112,7 @@ type PlanData = {
   } | null;
   submission_method?: "portal" | "email" | "mail" | "mixed";
   submission_email?: string | null;
+  submission_email_draft?: { subject: string; body: string } | null;
   submission_mailing_address?: string | null;
   submission_notes?: string | null;
   steps: SubmissionStep[];
@@ -1063,6 +1069,25 @@ export default function SubmissionPlanView({
         </div>
       )}
 
+      {/* Email compose — draft a cover email and send it from the user's own
+          inbox (Option B). Only when this grant takes an email submission and
+          we know the recipient. */}
+      {(submissionMethod === "email" || submissionMethod === "mixed") &&
+        planData.submission_email && (
+          <EmailSubmissionPanel
+            recipient={planData.submission_email}
+            subject={
+              planData.submission_email_draft?.subject ||
+              `Application: ${planData.opportunity_title}`
+            }
+            body={
+              planData.submission_email_draft?.body ||
+              `Dear Program Officer,\n\nPlease find our completed application for "${planData.opportunity_title}" attached.\n\nThank you for your consideration.\n\nBest regards,`
+            }
+            onGoToWorkspace={onBack}
+          />
+        )}
+
       {/* Eligibility verdict — surfaced upfront so the user knows before
           spending time submitting (e.g. a small biz vs an academic-only grant). */}
       {planData.eligibility_assessment &&
@@ -1993,6 +2018,176 @@ export default function SubmissionPlanView({
           onClose={() => setShowUpgrade(null)}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Email-submission panel (Option B): the agent drafts a cover email, the user
+ * reviews/edits it, then opens it pre-filled in their OWN email client (Gmail
+ * compose or the system mail app) and sends it from their own address. We never
+ * send on the user's behalf here — they review and hit send themselves.
+ *
+ * Compose URLs can't carry attachments, so the panel makes attaching the DOCX
+ * an explicit step. (A future "Send via FundFly" option will attach + send the
+ * file automatically from a fundfly.app address.)
+ */
+function EmailSubmissionPanel({
+  recipient,
+  subject: initialSubject,
+  body: initialBody,
+  onGoToWorkspace,
+}: {
+  recipient: string;
+  subject: string;
+  body: string;
+  onGoToWorkspace: () => void;
+}) {
+  const [to, setTo] = useState(recipient);
+  const [subject, setSubject] = useState(initialSubject);
+  const [body, setBody] = useState(initialBody);
+  const [copied, setCopied] = useState(false);
+  const [attachConfirmed, setAttachConfirmed] = useState(false);
+
+  const gmailUrl =
+    `https://mail.google.com/mail/?view=cm&fs=1` +
+    `&to=${encodeURIComponent(to)}` +
+    `&su=${encodeURIComponent(subject)}` +
+    `&body=${encodeURIComponent(body)}`;
+  const mailtoUrl =
+    `mailto:${encodeURIComponent(to)}` +
+    `?subject=${encodeURIComponent(subject)}` +
+    `&body=${encodeURIComponent(body)}`;
+
+  const copyBody = async () => {
+    try {
+      await navigator.clipboard.writeText(`${subject}\n\n${body}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard may be blocked — non-fatal
+    }
+  };
+
+  const inputCls =
+    "w-full px-3 py-2 text-sm bg-card border border-border rounded-md focus:outline-none focus:border-accent";
+
+  return (
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="px-4 py-3 border-b border-border flex items-center gap-2 bg-accent/5">
+        <Mail size={15} className="text-accent" />
+        <h4 className="text-sm font-semibold">Email this application</h4>
+        <span className="ml-auto text-[11px] text-muted">
+          Sends from your own inbox
+        </span>
+      </div>
+
+      <div className="p-4 space-y-4">
+        {/* Step 1 — attach the proposal (compose links can't pre-attach files) */}
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/10 p-3 space-y-2">
+          <div className="flex items-start gap-2">
+            <Paperclip
+              size={14}
+              className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5"
+            />
+            <div className="text-xs text-amber-900/90 dark:text-amber-200/90">
+              <span className="font-semibold">First, attach your proposal.</span>{" "}
+              Email drafts can&apos;t carry a file automatically, so download the
+              DOCX from your workspace and attach it after the draft opens.
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 pl-6">
+            <button
+              onClick={onGoToWorkspace}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-border bg-card hover:border-accent/40 transition-colors"
+            >
+              <FileText size={13} /> Go to workspace to download DOCX
+            </button>
+            <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer text-amber-900/80 dark:text-amber-200/80">
+              <input
+                type="checkbox"
+                checked={attachConfirmed}
+                onChange={(e) => setAttachConfirmed(e.target.checked)}
+                className="accent-accent"
+              />
+              I&apos;ve downloaded it
+            </label>
+          </div>
+        </div>
+
+        {/* Step 2 — review the draft */}
+        <div className="space-y-2">
+          <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted">
+            To
+          </label>
+          <input
+            type="email"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            className={`${inputCls} font-mono`}
+          />
+          <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted pt-1">
+            Subject
+          </label>
+          <input
+            type="text"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            className={inputCls}
+          />
+          <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted pt-1">
+            Message
+          </label>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={8}
+            className={`${inputCls} resize-y leading-relaxed`}
+          />
+          <p className="text-[11px] text-muted">
+            Drafted by AI from your application — review and edit before sending.
+            The full proposal goes as the attached file, so this is just the
+            cover note.
+          </p>
+        </div>
+
+        {/* Step 3 — open in the user's own email client */}
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <a
+            href={gmailUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-accent to-purple-500 text-white shadow-sm hover:brightness-105 transition-all"
+          >
+            <Send size={14} /> Open in Gmail
+            <ExternalLink size={12} className="opacity-80" />
+          </a>
+          <a
+            href={mailtoUrl}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-border hover:bg-surface transition-colors"
+          >
+            <Mail size={14} /> Open in email app
+          </a>
+          <button
+            onClick={copyBody}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-border hover:bg-surface transition-colors"
+          >
+            {copied ? (
+              <>
+                <Check size={14} className="text-emerald-500" /> Copied
+              </>
+            ) : (
+              <>
+                <Copy size={14} /> Copy text
+              </>
+            )}
+          </button>
+        </div>
+        <p className="text-[11px] text-muted">
+          Opens a pre-filled draft in your own email — nothing is sent until you
+          review it and click send yourself.
+        </p>
+      </div>
     </div>
   );
 }
