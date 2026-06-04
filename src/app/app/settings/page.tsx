@@ -13,6 +13,7 @@ import {
   Plus,
   CheckCircle2,
 } from "lucide-react";
+import CredentialsVault from "@/components/CredentialsVault";
 
 // Mirror of CREDIT_PACKS in lib/stripe.ts (kept inline so this client
 // component doesn't import the server-only Stripe SDK). ids must match.
@@ -421,6 +422,11 @@ export default function SettingsPage() {
           </p>
         </div>
       )}
+
+      {/* Saved portal logins (credentials vault) */}
+      <div className="mb-6">
+        <CredentialsVault />
+      </div>
 
       {/* Guided Tour */}
       <div className="bg-card border border-border rounded-xl p-6 mb-6">
