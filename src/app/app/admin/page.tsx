@@ -21,6 +21,7 @@ import {
   Clock,
   DollarSign,
   Inbox,
+  Activity,
 } from "lucide-react";
 
 type AdminStats = {
@@ -667,6 +668,27 @@ export default function AdminPage() {
             <div className="text-sm font-medium group-hover:text-accent transition-colors">Blog Management</div>
             <div className="text-xs text-muted">
               Generate, edit, publish, and manage blog posts
+            </div>
+          </div>
+        </div>
+        <ChevronRight className="w-4 h-4 text-muted group-hover:text-accent transition-colors" />
+      </a>
+
+      {/* User Activity Link — funnel + per-user journeys */}
+      <a
+        href="/app/admin/activity"
+        className="bg-card border border-border rounded-xl p-5 flex items-center justify-between hover:border-accent/30 transition-colors group"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
+            <Activity className="w-4 h-4 text-accent" />
+          </div>
+          <div>
+            <div className="text-sm font-medium group-hover:text-accent transition-colors">
+              User Activity
+            </div>
+            <div className="text-xs text-muted">
+              Conversion funnel + per-user journeys and drop-off
             </div>
           </div>
         </div>
