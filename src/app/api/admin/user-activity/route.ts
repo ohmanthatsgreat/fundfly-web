@@ -13,6 +13,7 @@ import {
   subscriptions,
   trials,
   creditTopups,
+  userEvents,
 } from "@/lib/db";
 import { eq, sql, desc } from "drizzle-orm";
 
@@ -71,6 +72,9 @@ export async function GET() {
     subs,
     trialRows,
     topups,
+    engAgg,
+    pathAgg,
+    pvRecent,
   ] = await Promise.all([
     db
       .select({
@@ -167,6 +171,39 @@ export async function GET() {
       })
       .from(creditTopups)
       .groupBy(creditTopups.userId),
+    // Engagement (first-party beacon): sessions, page views, first/last seen.
+    db
+      .select({
+        userId: userEvents.userId,
+        sessions: sql<number>`count(distinct ${userEvents.sessionId})::int`,
+        pageViews: sql<number>`count(*) filter (where ${userEvents.type} = 'page_view')::int`,
+        events: sql<number>`count(*)::int`,
+        firstSeen: sql<string>`min(${userEvents.createdAt})`,
+        lastSeen: sql<string>`max(${userEvents.createdAt})`,
+      })
+      .from(userEvents)
+      .groupBy(userEvents.userId),
+    // Most-visited pages per user.
+    db
+      .select({
+        userId: userEvents.userId,
+        path: userEvents.path,
+        n: sql<number>`count(*)::int`,
+      })
+      .from(userEvents)
+      .where(eq(userEvents.type, "page_view"))
+      .groupBy(userEvents.userId, userEvents.path),
+    // Recent page views (for the per-user activity stream).
+    db
+      .select({
+        userId: userEvents.userId,
+        path: userEvents.path,
+        at: userEvents.createdAt,
+      })
+      .from(userEvents)
+      .where(eq(userEvents.type, "page_view"))
+      .orderBy(desc(userEvents.createdAt))
+      .limit(500),
   ]);
 
   // ── Index the aggregates by user id ─────────────────────────────────────────
@@ -208,6 +245,20 @@ export async function GET() {
     arr.push({ plan: s.plan, status: s.status });
     subsByUser.set(s.clerkUserId, arr);
   }
+  const engM = byUser(engAgg);
+  const pathsByUser = new Map<string, { path: string; n: number }[]>();
+  for (const p of pathAgg) {
+    if (!p.path) continue;
+    const arr = pathsByUser.get(p.userId) || [];
+    arr.push({ path: p.path, n: p.n });
+    pathsByUser.set(p.userId, arr);
+  }
+  const pvByUser = new Map<string, typeof pvRecent>();
+  for (const e of pvRecent) {
+    const arr = pvByUser.get(e.userId) || [];
+    arr.push(e);
+    pvByUser.set(e.userId, arr);
+  }
 
   const RAN = new Set(["running", "completed", "failed", "cancelled"]);
 
@@ -246,7 +297,11 @@ export async function GET() {
       if (stages[s.key]) furthestIdx = i;
     });
 
-    // Last activity = newest timestamp across every signal we have.
+    const eng = engM.get(uid);
+
+    // Last activity = newest timestamp across every signal we have, including
+    // the engagement beacon's last-seen (the most precise signal once tracking
+    // is collecting data).
     const lastActiveMs = Math.max(
       ms(c.createdAt),
       ms(profAt),
@@ -255,8 +310,16 @@ export async function GET() {
       ...userApps.map((a) => ms(a.updatedAt)),
       ms(sectionM.get(uid)?.last),
       ...userPlans.map((p) => ms(p.updatedAt)),
-      ms(aiM.get(uid)?.last)
+      ms(aiM.get(uid)?.last),
+      ms(eng?.lastSeen)
     );
+
+    const topPaths = (pathsByUser.get(uid) || [])
+      .sort((a, b) => b.n - a.n)
+      .slice(0, 6);
+    const recentPageViews = (pvByUser.get(uid) || [])
+      .slice(0, 15)
+      .map((e) => ({ path: e.path, at: iso(e.at) }));
 
     return {
       clerkUserId: uid,
@@ -281,6 +344,15 @@ export async function GET() {
       recentAiActions: (aiEventsByUser.get(uid) || [])
         .slice(0, 12)
         .map((e) => ({ feature: e.feature, at: iso(e.at) })),
+      engagement: {
+        sessions: eng?.sessions || 0,
+        pageViews: eng?.pageViews || 0,
+        events: eng?.events || 0,
+        firstSeen: iso(eng?.firstSeen),
+        lastSeen: iso(eng?.lastSeen),
+        topPaths,
+        recentPageViews,
+      },
     };
   });
 

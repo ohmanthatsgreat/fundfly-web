@@ -37,7 +37,23 @@ type UserRow = {
   subscriptions: { plan: string; status: string }[];
   trial: { plan: string } | null;
   recentAiActions: { feature: string; at: string | null }[];
+  engagement: {
+    sessions: number;
+    pageViews: number;
+    events: number;
+    firstSeen: string | null;
+    lastSeen: string | null;
+    topPaths: { path: string; n: number }[];
+    recentPageViews: { path: string | null; at: string | null }[];
+  };
 };
+
+/** Make a route path human-readable for the admin (strip /app prefix). */
+function prettyPath(p: string | null): string {
+  if (!p) return "—";
+  const cleaned = p.replace(/^\/app\/?/, "") || "home";
+  return cleaned === "" ? "home" : cleaned;
+}
 
 const FUNNEL_ORDER: Stage[] = [
   { key: "signed_up", label: "Signed up" },
@@ -303,6 +319,85 @@ export default function ActivityPage() {
                           <div className="text-[10px] text-muted">{label}</div>
                         </div>
                       ))}
+                    </div>
+
+                    {/* Engagement (first-party beacon) */}
+                    <div>
+                      <div className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">
+                        Engagement
+                      </div>
+                      {u.engagement.events > 0 ? (
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap gap-4 text-sm">
+                            <span>
+                              <span className="font-semibold">
+                                {u.engagement.sessions}
+                              </span>{" "}
+                              <span className="text-muted">
+                                session{u.engagement.sessions === 1 ? "" : "s"}
+                              </span>
+                            </span>
+                            <span>
+                              <span className="font-semibold">
+                                {u.engagement.pageViews}
+                              </span>{" "}
+                              <span className="text-muted">page views</span>
+                            </span>
+                            <span className="text-muted text-xs self-center">
+                              first seen {fmtDate(u.engagement.firstSeen)}
+                            </span>
+                          </div>
+
+                          {u.engagement.topPaths.length > 0 && (
+                            <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1">
+                              {u.engagement.topPaths.map((p) => (
+                                <div
+                                  key={p.path}
+                                  className="flex items-center gap-2 text-xs"
+                                >
+                                  <span className="font-mono text-foreground/70 truncate">
+                                    {prettyPath(p.path)}
+                                  </span>
+                                  <span className="ml-auto text-muted shrink-0">
+                                    {p.n}×
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {u.engagement.recentPageViews.length > 0 && (
+                            <div>
+                              <div className="text-[11px] text-muted mb-1">
+                                Recent page views
+                              </div>
+                              <div className="space-y-1">
+                                {u.engagement.recentPageViews
+                                  .slice(0, 8)
+                                  .map((p, i) => (
+                                    <div
+                                      key={i}
+                                      className="flex items-center gap-2 text-xs"
+                                    >
+                                      <span className="font-mono text-foreground/70 truncate">
+                                        {prettyPath(p.path)}
+                                      </span>
+                                      <span className="ml-auto text-muted shrink-0">
+                                        {relTime(p.at)}
+                                      </span>
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted">
+                          No page-view data yet — this user hasn&apos;t browsed
+                          since live tracking went on. It&apos;ll populate as
+                          they (and new users) use the app.
+                        </p>
+                      )}
                     </div>
 
                     {/* Plan / trial */}

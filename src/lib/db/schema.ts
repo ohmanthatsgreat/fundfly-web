@@ -91,6 +91,30 @@ export const mailboxMessages = pgTable(
   ]
 );
 
+/**
+ * Lightweight first-party engagement events (page views + named actions),
+ * logged by the in-app beacon. Powers true "last seen", session counts, and
+ * page-level drop-off in the admin User Activity view — the things the derived
+ * milestone funnel can't see.
+ */
+export const userEvents = pgTable(
+  "user_events",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull(), // clerk user id
+    type: text("type").notNull(), // 'page_view' | 'action'
+    path: text("path"), // for page_view
+    name: text("name"), // for action (e.g. 'start_auto_submit')
+    meta: text("meta"), // optional JSON blob
+    sessionId: text("session_id"), // client session (sessionStorage)
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_uevents_user").on(t.userId),
+    index("idx_uevents_created").on(t.createdAt),
+  ]
+);
+
 export const subscriptions = pgTable(
   "subscriptions",
   {
