@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Sparkles, X, Loader2, Brain, ClipboardCheck, Bot, Check, Gift } from "lucide-react";
+import { trackAction } from "@/lib/track";
 
 type Feature = "matching" | "checklist" | "auto_submission";
 
@@ -75,15 +76,18 @@ export default function UpgradeModal({
   const TriggeredIcon = triggeredPlan.icon;
 
   useEffect(() => {
+    // Paywall impression — high-signal intent (saw the upgrade prompt).
+    trackAction("upgrade_modal_shown", { feature });
     fetch("/api/app/subscription")
       .then((r) => r.json())
       .then((d) => setTrialUsed(!!d.trialUsed))
       .catch(() => setTrialUsed(true)); // hide trial CTA if we can't confirm
-  }, []);
+  }, [feature]);
 
   async function handleStartTrial() {
     setStartingTrial(true);
     setError(null);
+    trackAction("start_trial", { plan: feature });
     try {
       const res = await fetch("/api/app/trial/start", {
         method: "POST",
@@ -112,6 +116,7 @@ export default function UpgradeModal({
   async function handleUpgrade(plan: string) {
     setLoadingPlan(plan);
     setError(null);
+    trackAction("upgrade_checkout_click", { plan });
     try {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",

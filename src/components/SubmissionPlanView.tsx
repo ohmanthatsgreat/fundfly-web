@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import UpgradeModal from "./UpgradeModal";
 import PortalCredentialsPanel from "./PortalCredentialsPanel";
+import { trackAction } from "@/lib/track";
 
 /** Two short beeps via Web Audio (no asset needed) to alert the user the
  *  agent is waiting on them — works even when the tab is in the background. */
@@ -548,6 +549,7 @@ export default function SubmissionPlanView({
   }
 
   const handleGeneratePlan = async () => {
+    trackAction("create_checklist", { applicationId });
     setGenerating(true);
     setPlanError(null);
     try {
@@ -578,6 +580,7 @@ export default function SubmissionPlanView({
 
   const handleStartAgent = async () => {
     if (!planId) return;
+    trackAction("start_auto_submit", { planId, applicationId });
     setPlanStatus("running");
     setStepStatuses({});
     setStepMessages({});
@@ -1159,7 +1162,10 @@ export default function SubmissionPlanView({
             still edit everything in the workspace afterward.)
           </p>
           <button
-            onClick={onGenerateSections}
+            onClick={() => {
+              trackAction("generate_application", { applicationId });
+              onGenerateSections();
+            }}
             disabled={generatingSections}
             className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-accent to-purple-500 text-white text-sm font-semibold rounded-lg shadow-sm hover:shadow-md hover:brightness-105 transition-all duration-150 disabled:opacity-50"
           >

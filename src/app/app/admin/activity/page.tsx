@@ -22,6 +22,7 @@ type UserRow = {
   name: string | null;
   signedUpAt: string | null;
   lastActiveAt: string | null;
+  online: boolean;
   furthestStage: string;
   furthestStageLabel: string;
   furthestIdx: number;
@@ -46,6 +47,16 @@ type UserRow = {
     topPaths: { path: string; n: number }[];
     recentPageViews: { path: string | null; at: string | null }[];
   };
+  recentActions: { name: string | null; at: string | null }[];
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  upgrade_modal_shown: "👀 Saw upgrade prompt",
+  upgrade_checkout_click: "💳 Clicked checkout",
+  start_trial: "🎁 Started trial",
+  create_checklist: "📋 Built checklist",
+  start_auto_submit: "🤖 Started auto-submit",
+  generate_application: "✍️ Generated application",
 };
 
 /** Make a route path human-readable for the admin (strip /app prefix). */
@@ -140,6 +151,9 @@ export default function ActivityPage() {
 
   useEffect(() => {
     load();
+    // Keep the online indicator live without a manual refresh.
+    const id = setInterval(load, 45_000);
+    return () => clearInterval(id);
   }, [load]);
 
   if (loading) {
@@ -228,8 +242,17 @@ export default function ActivityPage() {
         <div className="flex items-center gap-2 mb-4">
           <h2 className="font-semibold">Users</h2>
           <span className="text-sm text-muted">({users.length})</span>
+          {users.some((u) => u.online) && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              {users.filter((u) => u.online).length} online now
+            </span>
+          )}
           <span className="text-xs text-muted ml-auto">
-            Sorted by most recently active
+            Live · sorted by most recently active
           </span>
         </div>
 
@@ -251,6 +274,20 @@ export default function ActivityPage() {
                   ) : (
                     <ChevronRight className="w-4 h-4 text-muted shrink-0" />
                   )}
+                  {/* Online indicator */}
+                  <span
+                    className="relative flex h-2.5 w-2.5 shrink-0"
+                    title={u.online ? "Online now" : "Offline"}
+                  >
+                    {u.online && (
+                      <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+                    )}
+                    <span
+                      className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                        u.online ? "bg-emerald-500" : "bg-muted/40"
+                      }`}
+                    />
+                  </span>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium truncate">
                       {u.name || u.email}
@@ -399,6 +436,30 @@ export default function ActivityPage() {
                         </p>
                       )}
                     </div>
+
+                    {/* Key actions (instrumented clicks) */}
+                    {u.recentActions.length > 0 && (
+                      <div>
+                        <div className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">
+                          Key actions
+                        </div>
+                        <div className="space-y-1">
+                          {u.recentActions.map((a, i) => (
+                            <div
+                              key={i}
+                              className="flex items-center gap-2 text-xs"
+                            >
+                              <span className="text-foreground/80">
+                                {ACTION_LABELS[a.name || ""] || a.name}
+                              </span>
+                              <span className="ml-auto text-muted">
+                                {relTime(a.at)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Plan / trial */}
                     {(u.subscriptions.length > 0 || u.trial) && (

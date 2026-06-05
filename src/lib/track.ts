@@ -50,3 +50,10 @@ export function trackPageView(path: string) {
 export function trackAction(name: string, meta?: Record<string, unknown>) {
   send({ type: "action", name, meta });
 }
+
+/** Presence ping — keeps "last seen" fresh while a tab is open + visible, so
+ *  the admin online indicator is accurate even when the user isn't navigating.
+ *  Doesn't count as a page view. */
+export function trackHeartbeat() {
+  send({ type: "action", name: "heartbeat" });
+}

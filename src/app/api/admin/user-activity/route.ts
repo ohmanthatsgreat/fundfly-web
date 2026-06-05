@@ -75,6 +75,7 @@ export async function GET() {
     engAgg,
     pathAgg,
     pvRecent,
+    actRecent,
   ] = await Promise.all([
     db
       .select({
@@ -204,6 +205,17 @@ export async function GET() {
       .where(eq(userEvents.type, "page_view"))
       .orderBy(desc(userEvents.createdAt))
       .limit(500),
+    // Recent named actions (button clicks etc.; heartbeats filtered out in JS).
+    db
+      .select({
+        userId: userEvents.userId,
+        name: userEvents.name,
+        at: userEvents.createdAt,
+      })
+      .from(userEvents)
+      .where(eq(userEvents.type, "action"))
+      .orderBy(desc(userEvents.createdAt))
+      .limit(800),
   ]);
 
   // ── Index the aggregates by user id ─────────────────────────────────────────
@@ -258,6 +270,13 @@ export async function GET() {
     const arr = pvByUser.get(e.userId) || [];
     arr.push(e);
     pvByUser.set(e.userId, arr);
+  }
+  const actByUser = new Map<string, { name: string | null; at: Date }[]>();
+  for (const e of actRecent) {
+    if (e.name === "heartbeat") continue; // presence noise, not an action
+    const arr = actByUser.get(e.userId) || [];
+    arr.push({ name: e.name, at: e.at });
+    actByUser.set(e.userId, arr);
   }
 
   const RAN = new Set(["running", "completed", "failed", "cancelled"]);
@@ -327,6 +346,8 @@ export async function GET() {
       name: c.name,
       signedUpAt: iso(c.createdAt),
       lastActiveAt: lastActiveMs ? new Date(lastActiveMs).toISOString() : null,
+      // "Online" = a beacon/heartbeat within the last 3 minutes.
+      online: lastActiveMs > Date.now() - 3 * 60 * 1000,
       furthestStage: FUNNEL[furthestIdx].key,
       furthestStageLabel: FUNNEL[furthestIdx].label,
       furthestIdx,
@@ -353,6 +374,9 @@ export async function GET() {
         topPaths,
         recentPageViews,
       },
+      recentActions: (actByUser.get(uid) || [])
+        .slice(0, 12)
+        .map((a) => ({ name: a.name, at: iso(a.at) })),
     };
   });
 
